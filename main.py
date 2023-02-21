@@ -193,16 +193,16 @@ def main() -> None:
         pyplot.plot(theta_range, lambda_brakelmann, c=cmap(2), label="Brakelmann")
         pyplot.plot(theta_range, lambda_hu, c=cmap(3), label="Hu")
         pyplot.xlabel("Theta [m³%]")
-        pyplot.ylabel("Lambda [W/mK]")
+        pyplot.ylabel("Lambda [W/(mK)]")
         pyplot.legend()
 
         # write to file
         soil_output = {
             f"Feuchte {n + 1:d}, {short_name:s} [m³%]":     theta_range,
-            f"Markert {n + 1:d}, {short_name:s} [W/mK]":    lambda_markert,
-            f"Brakelmann {n + 1:d}, {short_name:s} [W/mK]": lambda_brakelmann,
-            f"Markle {n + 1:d}, {short_name:s} [W/mK]":     lambda_markle,
-            f"Hu {n + 1:d}, {short_name:s} [W/mK]":         lambda_hu
+            f"Markert {n + 1:d}, {short_name:s} [W/(mK)]":    lambda_markert,
+            f"Brakelmann {n + 1:d}, {short_name:s} [W/(mK)]": lambda_brakelmann,
+            f"Markle {n + 1:d}, {short_name:s} [W/(mK)]":     lambda_markle,
+            f"Hu {n + 1:d}, {short_name:s} [W/(mK)]":         lambda_hu
         }
 
         soil_df = pandas.DataFrame(soil_output)
