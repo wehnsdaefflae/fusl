@@ -7,8 +7,8 @@ from matplotlib import pyplot
 import pandas
 
 
-def hu(S, lam_s, lam_w, porosity, rho_s, rho_si):
-    ke_hu = .9878 + .1811 * numpy.log(S)
+def hu(steps, lam_s, lam_w, porosity, rho_s, rho_si):
+    ke_hu = .9878 + .1811 * numpy.log(steps)
     # lambda_s = 3.35
     # lambda_w = 0.6
     # lambda_air = 0.0246
@@ -18,19 +18,19 @@ def hu(S, lam_s, lam_w, porosity, rho_s, rho_si):
     return lam_hu
 
 
-def markle(S, lam_s, porosity, lam_w, rho_s, rho_si):
+def markle(steps, lam_s, porosity, lam_w, rho_s, rho_si):
     zeta = 8.9
-    ke_ma = 1. - numpy.exp(-zeta * S)
+    ke_ma = 1. - numpy.exp(-zeta * steps)
     lam_dry = (.135 * rho_si + 64.7) / (rho_s - .947 * rho_si)
     lam_sat = lam_w ** porosity * lam_s ** (1 - porosity)
     lam_markle = lam_dry + ke_ma * (lam_sat - lam_dry)
     return lam_markle
 
 
-def brakelmann(S, f_clay, f_sand, f_silt, lam_w, porosity):
+def brakelmann(steps, f_clay, f_sand, f_silt, lam_w, porosity):
     lam_b = .0812 * f_sand + .054 * f_silt + .02 * f_clay
     # rho_p = 0.0263 * f_sand + 0.0265 * f_silt + 0.028 * f_clay
-    lam_brakelmann = lam_w ** porosity * lam_b ** (1. - porosity) * numpy.exp(-3.08 * porosity * (1. - S) ** 2)
+    lam_brakelmann = lam_w ** porosity * lam_b ** (1. - porosity) * numpy.exp(-3.08 * porosity * (1. - steps) ** 2)
     return lam_brakelmann
 
 
@@ -47,20 +47,38 @@ def main() -> None:
     path = Path("data/")
 
     soils_input_file = path / "23_02_Boeden_Mario.xlsx"                 # absolute dichte pro messreihe
-    measurements_input_file = path / "Messdatenbank_FAU.xlsx"           # (absolute dichte pro messreihe), volumenanteil wasser pro messung, wärmeleitfähigkeit pro messung
-    output_file = path / "02_16_Ergebnisse.xlsx"
+    soils_output_file = path / "02_16_Ergebnisse.xlsx"
+    soils_output_handler = pandas.ExcelWriter(soils_output_file)
+    data_soil = pandas.read_excel(soils_input_file, index_col=0)
 
-    output_handler = pandas.ExcelWriter(output_file)
+    measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-02-21.xlsx"   # (absolute dichte pro messreihe), volumenanteil wasser pro messung, wärmeleitfähigkeit pro messung
+    measurements_output_file = path / "model_fit.xlsx"
+    measurements_output_handler = pandas.ExcelWriter(measurements_output_file)
+    data_measurement_sheets = pandas.read_excel(measurements_input_file, sheet_name=None)
 
-    data = pandas.read_excel(soils_input_file, index_col=0)
     cmap = pyplot.get_cmap("Set1")
 
     density_s = 2650                    # reindichte stein? soil? grauwacke? https://www.chemie.de/lexikon/Gesteinsdichte.html
     thermal_conductivity_water = .57    # wiki: 0.597 https://de.wikipedia.org/wiki/Eigenschaften_des_Wassers
     thermal_conductivity_q = 7.7        # metall?
 
-    for n, col in enumerate(data.columns):
-        short_name, percentage_sand, percentage_silt, percentage_clay, density_soil_non_si = data[col].values  # KA5 name, anteil sand, anteil schluff, anteil lehm, dichte
+    measurement_output = {
+        "Messreihe":                                   [],
+        "#Messungen":                                  [],
+        "Normierter quadratischer Fehler Markert":     [],
+        "Normierter quadratischer Fehler Brakelmann":  [],
+        "Normierter quadratischer Fehler Markle":      [],
+        "Normierter quadratischer Fehler Hu":          []
+
+    }
+
+    for n, col in enumerate(data_soil.columns):
+        each_sheet = data_measurement_sheets.get(f"{n+1:d}")
+        if each_sheet is None:
+            print(f"Sheet {n+1:d} not found")
+            break
+
+        short_name, percentage_sand, percentage_silt, percentage_clay, density_soil_non_si = data_soil[col].values  # KA5 name, anteil sand, anteil schluff, anteil lehm, dichte
         density_soil = density_soil_non_si * 1000.  # g/cm3 -> kg/m3
         porosity_ratio = 1. - density_soil / density_s
         print(f"{col:d} \t fSand={percentage_sand:d}, fSilt={percentage_silt:d}, fClay={percentage_clay:d}")
@@ -68,10 +86,11 @@ def main() -> None:
         # volumetrischer Sättigungswassergehalt [m3/m3]
         print(porosity_ratio)
 
-        # S_target = theta_measurement / theta_sat
+        theta_measurement = each_sheet["θ [cm3/cm3]"]
+        lambda_measurement = each_sheet["λ [W/(m∙K)]"]
+        step_measurement = theta_measurement / porosity_ratio
 
         # Sättigung
-        # steps = numpy.linspace(1e-6, 1, num=50)
         steps = numpy.linspace(1, 0, num=50, endpoint=False)[::-1]
 
         # Wassergehalt
@@ -80,6 +99,56 @@ def main() -> None:
         phi_q = .5 * percentage_sand / 100.
         thermal_conductivity_other = 3. if phi_q < .2 else 2.
         thermal_conductivity_s = thermal_conductivity_q ** phi_q * thermal_conductivity_other ** (1 - phi_q)  # thermal conductivity of stone? soil?
+
+        # Modellpassung
+        lambda_markert_ideal = markert(
+            theta_measurement,
+            percentage_clay,
+            percentage_sand,
+            porosity_ratio,
+            density_soil_non_si
+        )
+
+        lambda_brakelmann_ideal = brakelmann(
+            step_measurement,
+            percentage_clay,
+            percentage_sand,
+            percentage_silt,
+            thermal_conductivity_water,
+            porosity_ratio)
+
+        lambda_markle_ideal = markle(
+            step_measurement,
+            thermal_conductivity_s,
+            porosity_ratio,
+            thermal_conductivity_water,
+            density_s,
+            density_soil
+        )
+
+        lambda_hu_ideal = hu(
+            step_measurement,
+            thermal_conductivity_s,
+            thermal_conductivity_water,
+            porosity_ratio,
+            density_s,
+            density_soil
+        )
+
+        markert_quadratic_error = numpy.sum((lambda_measurement - lambda_markert_ideal) ** 2)
+        brakelmann_quadratic_error = numpy.sum((lambda_measurement - lambda_brakelmann_ideal) ** 2)
+        markle_quadratic_error = numpy.sum((lambda_measurement - lambda_markle_ideal) ** 2)
+        hu_quadratic_error = numpy.sum((lambda_measurement - lambda_hu_ideal) ** 2)
+
+        # hu nicht definiert für wasseranteil <= .0?
+
+        no_measurements = len(lambda_measurement)
+        measurement_output["Messreihe"].append(n + 1)
+        measurement_output["#Messungen"].append(no_measurements)
+        measurement_output["Normierter quadratischer Fehler Markert"].append(markert_quadratic_error / no_measurements)
+        measurement_output["Normierter quadratischer Fehler Brakelmann"].append(brakelmann_quadratic_error / no_measurements)
+        measurement_output["Normierter quadratischer Fehler Markle"].append(markle_quadratic_error / no_measurements)
+        measurement_output["Normierter quadratischer Fehler Hu"].append(hu_quadratic_error / no_measurements)
 
         # Modelle
         lambda_markert = markert(
@@ -128,19 +197,24 @@ def main() -> None:
         pyplot.legend()
 
         # write to file
-        output = {
-            f"Feuchte {n + 1:d}, {short_name:s} [m³%]": theta_range,
-            f"Markert {n + 1:d}, {short_name:s} [W/mK]": lambda_markert,
+        soil_output = {
+            f"Feuchte {n + 1:d}, {short_name:s} [m³%]":     theta_range,
+            f"Markert {n + 1:d}, {short_name:s} [W/mK]":    lambda_markert,
             f"Brakelmann {n + 1:d}, {short_name:s} [W/mK]": lambda_brakelmann,
-            f"Markle {n + 1:d}, {short_name:s} [W/mK]": lambda_markle,
-            f"Hu {n + 1:d}, {short_name:s} [W/mK]": lambda_hu
+            f"Markle {n + 1:d}, {short_name:s} [W/mK]":     lambda_markle,
+            f"Hu {n + 1:d}, {short_name:s} [W/mK]":         lambda_hu
         }
 
-        df = pandas.DataFrame(output)
-        df.to_excel(output_handler, sheet_name=f"{n + 1:d} {short_name:s}")
+        soil_df = pandas.DataFrame(soil_output)
+        soil_df.to_excel(soils_output_handler, sheet_name=f"{n + 1:d} {short_name:s}")
 
     # write xls
-    output_handler.close()
+    measurements_df = pandas.DataFrame(measurement_output)
+    measurements_df.to_excel(measurements_output_handler, index=False)
+    measurements_output_handler.close()
+
+    soils_output_handler.close()
+
     pyplot.show()
 
 
