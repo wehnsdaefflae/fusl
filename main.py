@@ -13,6 +13,8 @@ def hu(steps, lam_s, lam_w, porosity, rho_s, rho_si):
     # lambda_w = 0.6
     # lambda_air = 0.0246
     lam_dry = (0.135 * rho_si + 64.7) / (rho_s - 0.947 * rho_si)
+    ke_hu[ke_hu == numpy.inf] = lam_dry
+    ke_hu[ke_hu == -numpy.inf] = lam_dry
     lam_sat = lam_w ** porosity * lam_s ** (1 - porosity)
     lam_hu = lam_dry + ke_hu * (lam_sat - lam_dry)
     return lam_hu
@@ -58,9 +60,9 @@ def main() -> None:
 
     cmap = pyplot.get_cmap("Set1")
 
-    density_s = 2650                    # reindichte stein? soil? grauwacke? https://www.chemie.de/lexikon/Gesteinsdichte.html
+    particle_density = 2650             # reindichte stein? soil? grauwacke? https://www.chemie.de/lexikon/Gesteinsdichte.html
     thermal_conductivity_water = .57    # wiki: 0.597 https://de.wikipedia.org/wiki/Eigenschaften_des_Wassers
-    thermal_conductivity_q = 7.7        # metall?
+    thermal_conductivity_quartz = 7.7   # metall?
 
     measurement_output = {
         "Messreihe":                                   [],
@@ -80,7 +82,7 @@ def main() -> None:
 
         short_name, percentage_sand, percentage_silt, percentage_clay, density_soil_non_si = data_soil[col].values  # KA5 name, anteil sand, anteil schluff, anteil lehm, dichte
         density_soil = density_soil_non_si * 1000.  # g/cm3 -> kg/m3
-        porosity_ratio = 1. - density_soil / density_s
+        porosity_ratio = 1. - density_soil / particle_density
         print(f"{col:d} \t fSand={percentage_sand:d}, fSilt={percentage_silt:d}, fClay={percentage_clay:d}")
 
         # volumetrischer Sättigungswassergehalt [m3/m3]
@@ -96,9 +98,9 @@ def main() -> None:
         # Wassergehalt
         theta_range = steps * porosity_ratio
 
-        phi_q = .5 * percentage_sand / 100.
-        thermal_conductivity_other = 3. if phi_q < .2 else 2.
-        thermal_conductivity_s = thermal_conductivity_q ** phi_q * thermal_conductivity_other ** (1 - phi_q)  # thermal conductivity of stone? soil?
+        theta_quartz = .5 * percentage_sand / 100.
+        thermal_conductivity_other = 3. if theta_quartz < .2 else 2.
+        thermal_conductivity_sand = thermal_conductivity_quartz ** theta_quartz * thermal_conductivity_other ** (1 - theta_quartz)  # thermal conductivity of stone? soil?
 
         # Modellpassung
         lambda_markert_ideal = markert(
@@ -119,19 +121,19 @@ def main() -> None:
 
         lambda_markle_ideal = markle(
             step_measurement,
-            thermal_conductivity_s,
+            thermal_conductivity_sand,
             porosity_ratio,
             thermal_conductivity_water,
-            density_s,
+            particle_density,
             density_soil
         )
 
         lambda_hu_ideal = hu(
             step_measurement,
-            thermal_conductivity_s,
+            thermal_conductivity_sand,
             thermal_conductivity_water,
             porosity_ratio,
-            density_s,
+            particle_density,
             density_soil
         )
 
@@ -169,19 +171,19 @@ def main() -> None:
 
         lambda_markle = markle(
             steps,
-            thermal_conductivity_s,
+            thermal_conductivity_sand,
             porosity_ratio,
             thermal_conductivity_water,
-            density_s,
+            particle_density,
             density_soil
         )
 
         lambda_hu = hu(
             steps,
-            thermal_conductivity_s,
+            thermal_conductivity_sand,
             thermal_conductivity_water,
             porosity_ratio,
-            density_s,
+            particle_density,
             density_soil
         )
 
