@@ -36,13 +36,23 @@ def brakelmann(steps, f_clay, f_sand, f_silt, lam_w, porosity):
     return lam_brakelmann
 
 
-def markert(theta, f_clay, f_sand, porosity, rho):
+def markert_all(theta, f_clay, f_sand, porosity, rho):
     p = 1.21, -1.55, .02, .25, 2.29, 2.12, -1.04, -2.03
     lambda_dry = p[0] + p[1] * porosity
     alpha = p[2] * f_clay / 100. + p[3]
     beta = p[4] * f_sand / 100. + p[5] * rho + p[6] * f_sand / 100. * rho + p[7]
     lam_markert = lambda_dry + numpy.exp(beta - theta ** (-alpha))
     return lam_markert
+
+
+def markert_specific():
+    # https://www.dropbox.com/s/y6hm5m6necbzkpr/Soil%20Science%20Soc%20of%20Amer%20J%20-%202017%20-%20Markert%20-.pdf?dl=0
+    pass
+
+
+def markert_lu():
+    # https://www.dropbox.com/s/6iq8z26iahk6s6d/2018-10-25_FAU_TB_Endbericht_Pos.3.1_V3.pdf?dl=0
+    pass
 
 
 def main() -> None:
@@ -83,7 +93,7 @@ def main() -> None:
         short_name, percentage_sand, percentage_silt, percentage_clay, density_soil_non_si = data_soil[col].values  # KA5 name, anteil sand, anteil schluff, anteil lehm, dichte
         density_soil = density_soil_non_si * 1000.  # g/cm3 -> kg/m3
         porosity_ratio = 1. - density_soil / particle_density
-        print(f"{col:d} \t fSand={percentage_sand:d}, fSilt={percentage_silt:d}, fClay={percentage_clay:d}")
+        print(f"{col:d} \t fSand={percentage_sand:.0f}, fSilt={percentage_silt:.0f}, fClay={percentage_clay:.0f}")
 
         # volumetrischer Sättigungswassergehalt [m3/m3]
         print(porosity_ratio)
@@ -103,7 +113,7 @@ def main() -> None:
         thermal_conductivity_sand = thermal_conductivity_quartz ** theta_quartz * thermal_conductivity_other ** (1 - theta_quartz)  # thermal conductivity of stone? soil?
 
         # Modellpassung
-        lambda_markert_ideal = markert(
+        lambda_markert_ideal = markert_all(
             theta_measurement,
             percentage_clay,
             percentage_sand,
@@ -153,7 +163,7 @@ def main() -> None:
         measurement_output["Normierter quadratischer Fehler Hu"].append(hu_quadratic_error / no_measurements)
 
         # Modelle
-        lambda_markert = markert(
+        lambda_markert = markert_all(
             theta_range,
             percentage_clay,
             percentage_sand,
