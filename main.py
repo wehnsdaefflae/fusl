@@ -65,13 +65,20 @@ def main() -> None:
     thermal_conductivity_quartz = 7.7   # metall?
 
     measurement_output = {
-        "Messreihe":                                   [],
-        "#Messungen":                                  [],
-        "Normierter quadratischer Fehler Markert":     [],
-        "Normierter quadratischer Fehler Brakelmann":  [],
-        "Normierter quadratischer Fehler Markle":      [],
-        "Normierter quadratischer Fehler Hu":          []
-
+        "Messreihe":        [],
+        "#Messungen":       [],
+        "DIF Markert":      [],
+        "DIF Brakelmann":   [],
+        "DIF Markle":       [],
+        "DIF Hu":           [],
+        "MSE Markert":      [],
+        "MSE Brakelmann":   [],
+        "MSE Markle":       [],
+        "MSE Hu":           [],
+        "STD Markert":      [],
+        "STD Brakelmann":   [],
+        "STD Markle":       [],
+        "STD Hu":           []
     }
 
     for n, col in enumerate(data_soil.columns):
@@ -137,20 +144,33 @@ def main() -> None:
             density_soil
         )
 
-        markert_quadratic_error = numpy.sum((lambda_measurement - lambda_markert_ideal) ** 2)
-        brakelmann_quadratic_error = numpy.sum((lambda_measurement - lambda_brakelmann_ideal) ** 2)
-        markle_quadratic_error = numpy.sum((lambda_measurement - lambda_markle_ideal) ** 2)
-        hu_quadratic_error = numpy.sum((lambda_measurement - lambda_hu_ideal) ** 2)
-
-        # hu nicht definiert für wasseranteil <= .0?
-
         no_measurements = len(lambda_measurement)
         measurement_output["Messreihe"].append(n + 1)
         measurement_output["#Messungen"].append(no_measurements)
-        measurement_output["Normierter quadratischer Fehler Markert"].append(markert_quadratic_error / no_measurements)
-        measurement_output["Normierter quadratischer Fehler Brakelmann"].append(brakelmann_quadratic_error / no_measurements)
-        measurement_output["Normierter quadratischer Fehler Markle"].append(markle_quadratic_error / no_measurements)
-        measurement_output["Normierter quadratischer Fehler Hu"].append(hu_quadratic_error / no_measurements)
+
+        # sum of differences (average difference per point)
+        markert_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_markert_ideal)) / no_measurements
+        brakelmann_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_brakelmann_ideal)) / no_measurements
+        markle_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_markle_ideal)) / no_measurements
+        hu_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_hu_ideal)) / no_measurements
+        measurement_output["DIF Markert"].append(markert_avrg_diff)
+        measurement_output["DIF Brakelmann"].append(brakelmann_avrg_diff)
+        measurement_output["DIF Markle"].append(markle_avrg_diff)
+        measurement_output["DIF Hu"].append(hu_avrg_diff)
+
+        markert_sse = numpy.sum((lambda_measurement - lambda_markert_ideal) ** 2)
+        brakelmann_sse = numpy.sum((lambda_measurement - lambda_brakelmann_ideal) ** 2)
+        markle_sse = numpy.sum((lambda_measurement - lambda_markle_ideal) ** 2)
+        hu_sse = numpy.sum((lambda_measurement - lambda_hu_ideal) ** 2)
+        measurement_output["MSE Markert"].append(markert_sse / no_measurements)
+        measurement_output["MSE Brakelmann"].append(brakelmann_sse / no_measurements)
+        measurement_output["MSE Markle"].append(markle_sse / no_measurements)
+        measurement_output["MSE Hu"].append(hu_sse / no_measurements)
+
+        measurement_output["STD Markert"].append(numpy.sqrt(markert_sse / (no_measurements - 1)))
+        measurement_output["STD Brakelmann"].append(numpy.sqrt(brakelmann_sse / (no_measurements - 1)))
+        measurement_output["STD Markle"].append(numpy.sqrt(markle_sse / (no_measurements - 1)))
+        measurement_output["STD Hu"].append(numpy.sqrt(hu_sse / (no_measurements - 1)))
 
         # Modelle
         lambda_markert = markert(
@@ -200,11 +220,11 @@ def main() -> None:
 
         # write to file
         soil_output = {
-            f"Feuchte {n + 1:d}, {short_name:s} [m³%]":     theta_range,
-            f"Markert {n + 1:d}, {short_name:s} [W/(mK)]":    lambda_markert,
-            f"Brakelmann {n + 1:d}, {short_name:s} [W/(mK)]": lambda_brakelmann,
-            f"Markle {n + 1:d}, {short_name:s} [W/(mK)]":     lambda_markle,
-            f"Hu {n + 1:d}, {short_name:s} [W/(mK)]":         lambda_hu
+            f"Feuchte {n + 1:d}, {short_name:s} [m³%]":         theta_range,
+            f"Markert {n + 1:d}, {short_name:s} [W/(mK)]":      lambda_markert,
+            f"Brakelmann {n + 1:d}, {short_name:s} [W/(mK)]":   lambda_brakelmann,
+            f"Markle {n + 1:d}, {short_name:s} [W/(mK)]":       lambda_markle,
+            f"Hu {n + 1:d}, {short_name:s} [W/(mK)]":           lambda_hu
         }
 
         soil_df = pandas.DataFrame(soil_output)
@@ -217,7 +237,7 @@ def main() -> None:
 
     soils_output_handler.close()
 
-    pyplot.show()
+    # pyplot.show()
 
 
 if __name__ == "__main__":
