@@ -36,13 +36,52 @@ def brakelmann(steps, f_clay, f_sand, f_silt, lam_w, porosity):
     return lam_brakelmann
 
 
-def markert(theta, f_clay, f_sand, porosity, rho):
-    p = 1.21, -1.55, .02, .25, 2.29, 2.12, -1.04, -2.03
+def markert_all(theta, f_clay, f_sand, porosity, rho, p: tuple[float, ...] | None = None):
+    if p is None:
+        sand_silt_loam = +1.21, -1.55, +0.02, +0.25, +2.29, +2.12, -1.04, -2.03
+        p = sand_silt_loam
+
     lambda_dry = p[0] + p[1] * porosity
     alpha = p[2] * f_clay / 100. + p[3]
     beta = p[4] * f_sand / 100. + p[5] * rho + p[6] * f_sand / 100. * rho + p[7]
     lam_markert = lambda_dry + numpy.exp(beta - theta ** (-alpha))
     return lam_markert
+
+
+def markert_specific(theta, f_clay, f_silt, f_sand, porosity, rho, packed: bool = True):
+    # p table: 1323, texture groups: 1320, https://www.dropbox.com/s/y6hm5m6necbzkpr/Soil%20Science%20Soc%20of%20Amer%20J%20-%202017%20-%20Markert%20-.pdf?dl=0
+
+    tg_sand_u = +1.51, -3.07, +1.24, +0.24, +1.87, +2.34, -1.34, -1.32
+    tg_sand_p = +0.72, -0.74, -0.82, +0.22, +1.55, +2.22, -1.36, -0.95
+
+    tg_silt_u = +0.92, -1.08, +0.90, +0.21, +0.14, +1.27, +0.25, -0.33
+    tg_silt_p = +1.83, -2.75, +0.12, +0.22, +5.00, +1.32, -1.56, -0.88
+
+    tg_loam_u = +1.24, -1.55, +0.08, +0.28, +4.26, +1.17, -1.62, -1.19
+    tg_loam_p = +1.79, -2.62, -0.39, +0.25, +3.83, +1.44, -1.11, -2.02
+
+    if f_silt + 2 * f_clay < 30:
+        # TG Sand; S, LS
+        p = tg_sand_p if packed else tg_sand_u
+
+    elif 50 < f_silt and f_clay < 27:
+        # TG Silt; Si, SiL
+        p = tg_silt_p if packed else tg_silt_u
+
+    else:
+        # TG Loam; SL, SCL, SiCL, CL, L
+        p = tg_loam_p if packed else tg_loam_u
+
+    return markert_all(theta, f_clay, f_sand, porosity, rho, p=p)
+
+
+def markert_lu(theta, f_clay, f_sand, porosity, rho):
+    # seite 19, https://www.dropbox.com/s/6iq8z26iahk6s6d/2018-10-25_FAU_TB_Endbericht_Pos.3.1_V3.pdf?dl=0
+    lambda_dry = -.56 * porosity + .51
+    sigma = .67 * f_clay / 100. + .24
+    beta = 1.97 * f_sand / 100. + rho * 1.87 - 1.36 * f_sand / 100. - .95
+    lam_markert_lu = lambda_dry + numpy.exp(beta - theta ** (-sigma))
+    return lam_markert_lu
 
 
 def main() -> None:
@@ -90,7 +129,7 @@ def main() -> None:
         short_name, percentage_sand, percentage_silt, percentage_clay, density_soil_non_si = data_soil[col].values  # KA5 name, anteil sand, anteil schluff, anteil lehm, dichte
         density_soil = density_soil_non_si * 1000.  # g/cm3 -> kg/m3
         porosity_ratio = 1. - density_soil / particle_density
-        print(f"{col:d} \t fSand={percentage_sand:d}, fSilt={percentage_silt:d}, fClay={percentage_clay:d}")
+        print(f"{col:d} \t fSand={percentage_sand:.0f}, fSilt={percentage_silt:.0f}, fClay={percentage_clay:.0f}")
 
         # volumetrischer Sättigungswassergehalt [m3/m3]
         print(porosity_ratio)
@@ -110,13 +149,12 @@ def main() -> None:
         thermal_conductivity_sand = thermal_conductivity_quartz ** theta_quartz * thermal_conductivity_other ** (1 - theta_quartz)  # thermal conductivity of stone? soil?
 
         # Modellpassung
-        lambda_markert_ideal = markert(
+        lambda_markert_ideal = markert_all(
             theta_measurement,
             percentage_clay,
             percentage_sand,
             porosity_ratio,
-            density_soil_non_si
-        )
+            density_soil_non_si)
 
         lambda_brakelmann_ideal = brakelmann(
             step_measurement,
@@ -132,8 +170,7 @@ def main() -> None:
             porosity_ratio,
             thermal_conductivity_water,
             particle_density,
-            density_soil
-        )
+            density_soil)
 
         lambda_hu_ideal = hu(
             step_measurement,
@@ -141,8 +178,32 @@ def main() -> None:
             thermal_conductivity_water,
             porosity_ratio,
             particle_density,
-            density_soil
-        )
+            density_soil)
+
+        lambda_markert_specific_unpacked = markert_specific(
+            theta_measurement,
+            percentage_clay,
+            percentage_silt,
+            percentage_sand,
+            porosity_ratio,
+            density_soil_non_si,
+            packed=False)
+
+        lambda_markert_specific_packed = markert_specific(
+            theta_measurement,
+            percentage_clay,
+            percentage_silt,
+            percentage_sand,
+            porosity_ratio,
+            density_soil_non_si,
+            packed=True)
+
+        lambda_markert_lu = markert_lu(
+            theta_measurement,
+            percentage_clay,
+            percentage_sand,
+            porosity_ratio,
+            density_soil_non_si)
 
         no_measurements = len(lambda_measurement)
         measurement_output["Messreihe"].append(n + 1)
@@ -173,13 +234,12 @@ def main() -> None:
         measurement_output["STD Hu"].append(numpy.sqrt(hu_sse / (no_measurements - 1)))
 
         # Modelle
-        lambda_markert = markert(
+        lambda_markert = markert_all(
             theta_range,
             percentage_clay,
             percentage_sand,
             porosity_ratio,
-            density_soil_non_si
-        )
+            density_soil_non_si)
 
         lambda_brakelmann = brakelmann(
             steps,
@@ -195,8 +255,7 @@ def main() -> None:
             porosity_ratio,
             thermal_conductivity_water,
             particle_density,
-            density_soil
-        )
+            density_soil)
 
         lambda_hu = hu(
             steps,
@@ -204,8 +263,32 @@ def main() -> None:
             thermal_conductivity_water,
             porosity_ratio,
             particle_density,
-            density_soil
-        )
+            density_soil)
+
+        lambda_markert_specific_unpacked = markert_specific(
+            theta_range,
+            percentage_clay,
+            percentage_silt,
+            percentage_sand,
+            porosity_ratio,
+            density_soil_non_si,
+            packed=False)
+
+        lambda_markert_specific_packed = markert_specific(
+            theta_range,
+            percentage_clay,
+            percentage_silt,
+            percentage_sand,
+            porosity_ratio,
+            density_soil_non_si,
+            packed=True)
+
+        lambda_markert_lu = markert_lu(
+            theta_range,
+            percentage_clay,
+            percentage_sand,
+            porosity_ratio,
+            density_soil_non_si)
 
         # plot
         pyplot.figure()
@@ -214,17 +297,23 @@ def main() -> None:
         pyplot.plot(theta_range, lambda_markle, c=cmap(1), label="Markle")
         pyplot.plot(theta_range, lambda_brakelmann, c=cmap(2), label="Brakelmann")
         pyplot.plot(theta_range, lambda_hu, c=cmap(3), label="Hu")
+        pyplot.plot(theta_range, lambda_markert_specific_unpacked, c=cmap(4), label="Markert spezifisch unpacked")
+        pyplot.plot(theta_range, lambda_markert_specific_packed, c=cmap(5), label="Markert spezifisch packed")
+        pyplot.plot(theta_range, lambda_markert_lu, c=cmap(6), label="Markert-Lu")
         pyplot.xlabel("Theta [m³%]")
         pyplot.ylabel("Lambda [W/(mK)]")
         pyplot.legend()
 
         # write to file
         soil_output = {
-            f"Feuchte {n + 1:d}, {short_name:s} [m³%]":         theta_range,
-            f"Markert {n + 1:d}, {short_name:s} [W/(mK)]":      lambda_markert,
-            f"Brakelmann {n + 1:d}, {short_name:s} [W/(mK)]":   lambda_brakelmann,
-            f"Markle {n + 1:d}, {short_name:s} [W/(mK)]":       lambda_markle,
-            f"Hu {n + 1:d}, {short_name:s} [W/(mK)]":           lambda_hu
+            f"Feuchte {n + 1:d}, {short_name:s} [m³%]":                         theta_range,
+            f"Markert {n + 1:d}, {short_name:s} [W/(mK)]":                      lambda_markert,
+            f"Brakelmann {n + 1:d}, {short_name:s} [W/(mK)]":                   lambda_brakelmann,
+            f"Markle {n + 1:d}, {short_name:s} [W/(mK)]":                       lambda_markle,
+            f"Hu {n + 1:d}, {short_name:s} [W/(mK)]":                           lambda_hu,
+            f"Markert spezifisch unpacked {n + 1:d}, {short_name:s} [W/(mK)]":  lambda_markert_specific_unpacked,
+            f"Markert spezifisch packed {n + 1:d}, {short_name:s} [W/(mK)]":    lambda_markert_specific_packed,
+            f"Markert-Lu {n + 1:d}, {short_name:s} [W/(mK)]":                   lambda_markert_lu,
         }
 
         soil_df = pandas.DataFrame(soil_output)
