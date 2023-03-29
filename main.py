@@ -6,6 +6,8 @@ import numpy
 from matplotlib import pyplot
 import pandas
 
+from utils import Available
+
 
 def hu(steps, lam_s, lam_w, porosity, rho_s, rho_si):
     ke_hu = .9878 + .1811 * numpy.log(steps)
@@ -104,24 +106,29 @@ def main() -> None:
     thermal_conductivity_quartz = 7.7   # metall?
 
     measurement_output = {
-        "Messreihe":        [],
-        "#Messungen":       [],
-        "DIF Markert":      [],
-        "DIF Brakelmann":   [],
-        "DIF Markle":       [],
-        "DIF Hu":           [],
-        "MSE Markert":      [],
-        "MSE Brakelmann":   [],
-        "MSE Markle":       [],
-        "MSE Hu":           [],
-        "STD Markert":      [],
-        "STD Brakelmann":   [],
-        "STD Markle":       [],
-        "STD Hu":           []
-        # todo
-        # markert specific unpacked
-        # markert specific packed
-        # markert lu
+        "Messreihe":            [],
+        "#Messungen":           [],
+        "DIF Markert":          [],
+        "DIF Brakelmann":       [],
+        "DIF Markle":           [],
+        "DIF Hu":               [],
+        "DIF Markert spez. u.": [],
+        "DIF Markert spez. p.": [],
+        "DIF Markert Lu":       [],
+        "MSE Markert":          [],
+        "MSE Brakelmann":       [],
+        "MSE Markle":           [],
+        "MSE Hu":               [],
+        "MSE Markert spez. u.": [],
+        "MSE Markert spez. p.": [],
+        "MSE Markert Lu":       [],
+        "STD Markert":          [],
+        "STD Brakelmann":       [],
+        "STD Markle":           [],
+        "STD Hu":               [],
+        "STD Markert spez. u.": [],
+        "STD Markert spez. p.": [],
+        "STD Markert Lu":       []
     }
 
     for n, col in enumerate(data_soil.columns):
@@ -218,24 +225,39 @@ def main() -> None:
         brakelmann_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_brakelmann_ideal)) / no_measurements
         markle_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_markle_ideal)) / no_measurements
         hu_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_hu_ideal)) / no_measurements
+        markert_specific_unpacked_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_markert_specific_unpacked)) / no_measurements
+        markert_specific_packed_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_markert_specific_packed)) / no_measurements
+        markert_lu_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_markert_lu)) / no_measurements
         measurement_output["DIF Markert"].append(markert_avrg_diff)
         measurement_output["DIF Brakelmann"].append(brakelmann_avrg_diff)
         measurement_output["DIF Markle"].append(markle_avrg_diff)
         measurement_output["DIF Hu"].append(hu_avrg_diff)
+        measurement_output["DIF Markert spez. u."].append(markert_specific_unpacked_avrg_diff)
+        measurement_output["DIF Markert spez. p."].append(markert_specific_packed_avrg_diff)
+        measurement_output["DIF Markert Lu"].append(markert_lu_avrg_diff)
 
         markert_sse = numpy.sum((lambda_measurement - lambda_markert_ideal) ** 2)
         brakelmann_sse = numpy.sum((lambda_measurement - lambda_brakelmann_ideal) ** 2)
         markle_sse = numpy.sum((lambda_measurement - lambda_markle_ideal) ** 2)
         hu_sse = numpy.sum((lambda_measurement - lambda_hu_ideal) ** 2)
+        markert_specific_unpacked_sse = numpy.sum((lambda_measurement - lambda_markert_specific_unpacked) ** 2)
+        markert_specific_packed_sse = numpy.sum((lambda_measurement - lambda_markert_specific_packed) ** 2)
+        markert_lu_sse = numpy.sum((lambda_measurement - lambda_markert_lu) ** 2)
         measurement_output["MSE Markert"].append(markert_sse / no_measurements)
         measurement_output["MSE Brakelmann"].append(brakelmann_sse / no_measurements)
         measurement_output["MSE Markle"].append(markle_sse / no_measurements)
         measurement_output["MSE Hu"].append(hu_sse / no_measurements)
+        measurement_output["MSE Markert spez. u."].append(markert_specific_unpacked_sse / no_measurements)
+        measurement_output["MSE Markert spez. p."].append(markert_specific_packed_sse / no_measurements)
+        measurement_output["MSE Markert Lu"].append(markert_lu_sse / no_measurements)
 
         measurement_output["STD Markert"].append(numpy.sqrt(markert_sse / (no_measurements - 1)))
         measurement_output["STD Brakelmann"].append(numpy.sqrt(brakelmann_sse / (no_measurements - 1)))
         measurement_output["STD Markle"].append(numpy.sqrt(markle_sse / (no_measurements - 1)))
         measurement_output["STD Hu"].append(numpy.sqrt(hu_sse / (no_measurements - 1)))
+        measurement_output["STD Markert spez. u."].append(numpy.sqrt(markert_specific_unpacked_sse / (no_measurements - 1)))
+        measurement_output["STD Markert spez. p."].append(numpy.sqrt(markert_specific_packed_sse / (no_measurements - 1)))
+        measurement_output["STD Markert Lu"].append(numpy.sqrt(markert_lu_sse / (no_measurements - 1)))
 
         # Modelle
         lambda_markert = markert_all(
