@@ -105,6 +105,16 @@ def main() -> None:
     thermal_conductivity_water = .57    # wiki: 0.597 https://de.wikipedia.org/wiki/Eigenschaften_des_Wassers
     thermal_conductivity_quartz = 7.7   # metall?
 
+    scatter_data = {
+        "Markert":          {"model": [], "data": []},
+        "Brakelmann":       {"model": [], "data": []},
+        "Markle":           {"model": [], "data": []},
+        "Hu":               {"model": [], "data": []},
+        "Markert spez. u.": {"model": [], "data": []},
+        "Markert spez. p.": {"model": [], "data": []},
+        "Markert Lu":       {"model": [], "data": []}
+    }
+
     measurement_output = {
         "Messreihe":            [],
         "#Messungen":           [],
@@ -259,6 +269,21 @@ def main() -> None:
         measurement_output["STD Markert spez. p."].append(numpy.sqrt(markert_specific_packed_sse / (no_measurements - 1)))
         measurement_output["STD Markert Lu"].append(numpy.sqrt(markert_lu_sse / (no_measurements - 1)))
 
+        scatter_data["Markert"]["model"].extend(lambda_markert_ideal)
+        scatter_data["Markert"]["data"].extend(lambda_measurement)
+        scatter_data["Brakelmann"]["model"].extend(lambda_brakelmann_ideal)
+        scatter_data["Brakelmann"]["data"].extend(lambda_measurement)
+        scatter_data["Markle"]["model"].extend(lambda_markle_ideal)
+        scatter_data["Markle"]["data"].extend(lambda_measurement)
+        scatter_data["Hu"]["model"].extend(lambda_hu_ideal)
+        scatter_data["Hu"]["data"].extend(lambda_measurement)
+        scatter_data["Markert spez. u."]["model"].extend(lambda_markert_specific_unpacked)
+        scatter_data["Markert spez. u."]["data"].extend(lambda_measurement)
+        scatter_data["Markert spez. p."]["model"].extend(lambda_markert_specific_packed)
+        scatter_data["Markert spez. p."]["data"].extend(lambda_measurement)
+        scatter_data["Markert Lu"]["model"].extend(lambda_markert_lu)
+        scatter_data["Markert Lu"]["data"].extend(lambda_measurement)
+
         # Modelle
         lambda_markert = markert_all(
             theta_range,
@@ -317,6 +342,7 @@ def main() -> None:
             density_soil_non_si)
 
         # plot
+        """
         pyplot.figure()
         pyplot.title(short_name)
         pyplot.plot(theta_range, lambda_markert, c=cmap(0), label="Markert")
@@ -329,7 +355,7 @@ def main() -> None:
         pyplot.xlabel("Theta [m³%]")
         pyplot.ylabel("Lambda [W/(mK)]")
         pyplot.legend()
-
+        """
         # write to file
         soil_output = {
             f"Feuchte {n + 1:d}, {short_name:s} [m³%]":                         theta_range,
@@ -345,6 +371,25 @@ def main() -> None:
         soil_df = pandas.DataFrame(soil_output)
         soil_df.to_excel(soils_output_handler, sheet_name=f"{n + 1:d} {short_name:s}")
 
+    for method, info in scatter_data.items():
+        print(f"{method:s}: scatterplotting...")
+        pyplot.figure()
+        pyplot.xlabel("Messung [W/(mK)]")
+        pyplot.ylabel("Modell [W/(mK)]")
+        direction = 0.
+        measurements = 0
+        for model, data in zip(info["model"], info["data"]):
+            delta = model - data
+            if not numpy.isnan(delta):
+                direction += delta
+                measurements += 1
+        pyplot.scatter(info["data"], info["model"], c="black", alpha=.3, s=1)
+        pyplot.title(f"{method:s} (direction: {direction / measurements:.2f})")
+        pyplot.plot([0, 4], [0, 4], c="blue", linestyle="--")
+        pyplot.xlim(0, 4)
+        pyplot.ylim(0, 4)
+        pyplot.savefig(f"plots/scatter_{method:s}.png")
+
     # write xls
     measurements_df = pandas.DataFrame(measurement_output)
     measurements_df.to_excel(measurements_output_handler, index=False)
@@ -352,7 +397,7 @@ def main() -> None:
 
     soils_output_handler.close()
 
-    # pyplot.show()
+    pyplot.show()
 
 
 if __name__ == "__main__":
