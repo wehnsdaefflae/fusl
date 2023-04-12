@@ -6,10 +6,9 @@ import numpy
 from matplotlib import pyplot
 import pandas
 
-from utils import Available
 
-
-def hu(steps, lam_s, lam_w, porosity, rho_s, rho_si):
+def hu(theta_range, lam_s, lam_w, porosity, rho_s, rho_si):
+    steps = theta_range / porosity
     ke_hu = .9878 + .1811 * numpy.log(steps)
     # lambda_s = 3.35
     # lambda_w = 0.6
@@ -22,8 +21,9 @@ def hu(steps, lam_s, lam_w, porosity, rho_s, rho_si):
     return lam_hu
 
 
-def markle(steps, lam_s, porosity, lam_w, rho_s, rho_si):
+def markle(theta_range, lam_s, porosity, lam_w, rho_s, rho_si):
     zeta = 8.9
+    steps = theta_range / porosity
     ke_ma = 1. - numpy.exp(-zeta * steps)
     lam_dry = (.135 * rho_si + 64.7) / (rho_s - .947 * rho_si)
     lam_sat = lam_w ** porosity * lam_s ** (1 - porosity)
@@ -31,9 +31,10 @@ def markle(steps, lam_s, porosity, lam_w, rho_s, rho_si):
     return lam_markle
 
 
-def brakelmann(steps, f_clay, f_sand, f_silt, lam_w, porosity):
+def brakelmann(theta_range, f_clay, f_sand, f_silt, lam_w, porosity):
     lam_b = .0812 * f_sand + .054 * f_silt + .02 * f_clay
     # rho_p = 0.0263 * f_sand + 0.0265 * f_silt + 0.028 * f_clay
+    steps = theta_range / porosity
     lam_brakelmann = lam_w ** porosity * lam_b ** (1. - porosity) * numpy.exp(-3.08 * porosity * (1. - steps) ** 2)
     return lam_brakelmann
 
@@ -94,7 +95,8 @@ def main() -> None:
     soils_output_handler = pandas.ExcelWriter(soils_output_file)
     data_soil = pandas.read_excel(soils_input_file, index_col=0)
 
-    measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-02-21.xlsx"   # (absolute dichte pro messreihe), volumenanteil wasser pro messung, wärmeleitfähigkeit pro messung
+    # measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-02-21.xlsx"
+    measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-04-06.xlsx"   # (absolute dichte pro messreihe), volumenanteil wasser pro messung, wärmeleitfähigkeit pro messung
     measurements_output_file = path / "model_fit.xlsx"
     measurements_output_handler = pandas.ExcelWriter(measurements_output_file)
     data_measurement_sheets = pandas.read_excel(measurements_input_file, sheet_name=None)
@@ -141,7 +143,12 @@ def main() -> None:
         "STD Markert Lu":       []
     }
 
+    overview_sheet = data_measurement_sheets.get("Übersicht")
     for n, col in enumerate(data_soil.columns):
+        # get cells starting from the 7th column and the 2nd row to the last row
+        each_range_str = overview_sheet.iloc[(n, 6)]
+        each_range = tuple(float(x) / 100. for x in each_range_str.split(","))
+
         each_sheet = data_measurement_sheets.get(f"{n+1:d}")
         if each_sheet is None:
             print(f"Sheet {n+1:d} not found")
@@ -155,15 +162,22 @@ def main() -> None:
         # volumetrischer Sättigungswassergehalt [m3/m3]
         print(porosity_ratio)
 
-        theta_measurement = each_sheet["θ [cm3/cm3]"]
-        lambda_measurement = each_sheet["λ [W/(m∙K)]"]
-        step_measurement = theta_measurement / porosity_ratio
+        bound_lo = min(each_range)
+        bound_hi = max(each_range)
+
+        theta_array = each_sheet["θ [cm3/cm3]"].to_numpy()
+        filter_array = (bound_lo <= theta_array) & (theta_array <= bound_hi)
+        theta_measurement = theta_array[filter_array]
+        # theta_measurement = each_sheet["θ [cm3/cm3]"]
+        lambda_array = each_sheet["λ [W/(m∙K)]"].to_numpy()
+        lambda_measurement = lambda_array[filter_array]
 
         # Sättigung
-        steps = numpy.linspace(1, 0, num=50, endpoint=False)[::-1]
+        steps = numpy.linspace(1, 0, num=50, endpoint=True)[::-1]
 
         # Wassergehalt
         theta_range = steps * porosity_ratio
+        # theta_range = numpy.linspace(bound_lo, bound_hi, num=50)
 
         theta_quartz = .5 * percentage_sand / 100.
         thermal_conductivity_other = 3. if theta_quartz < .2 else 2.
@@ -178,7 +192,7 @@ def main() -> None:
             density_soil_non_si)
 
         lambda_brakelmann_ideal = brakelmann(
-            step_measurement,
+            theta_measurement,
             percentage_clay,
             percentage_sand,
             percentage_silt,
@@ -186,7 +200,7 @@ def main() -> None:
             porosity_ratio)
 
         lambda_markle_ideal = markle(
-            step_measurement,
+            theta_measurement,
             thermal_conductivity_sand,
             porosity_ratio,
             thermal_conductivity_water,
@@ -194,7 +208,7 @@ def main() -> None:
             density_soil)
 
         lambda_hu_ideal = hu(
-            step_measurement,
+            theta_measurement,
             thermal_conductivity_sand,
             thermal_conductivity_water,
             porosity_ratio,
@@ -293,7 +307,7 @@ def main() -> None:
             density_soil_non_si)
 
         lambda_brakelmann = brakelmann(
-            steps,
+            theta_range,
             percentage_clay,
             percentage_sand,
             percentage_silt,
@@ -301,7 +315,7 @@ def main() -> None:
             porosity_ratio)
 
         lambda_markle = markle(
-            steps,
+            theta_range,
             thermal_conductivity_sand,
             porosity_ratio,
             thermal_conductivity_water,
@@ -309,7 +323,7 @@ def main() -> None:
             density_soil)
 
         lambda_hu = hu(
-            steps,
+            theta_range,
             thermal_conductivity_sand,
             thermal_conductivity_water,
             porosity_ratio,
