@@ -6,6 +6,8 @@ import numpy
 from matplotlib import pyplot
 import pandas
 
+numpy.seterr(all='raise')
+
 
 def hu(theta_range, lam_s, lam_w, porosity, rho_s, rho_si):
     steps = theta_range / porosity
@@ -90,13 +92,13 @@ def markert_lu(theta, f_clay, f_sand, porosity, rho):
 def main() -> None:
     path = Path("data/")
 
-    soils_input_file = path / "23_02_Boeden_Mario.xlsx"                 # absolute dichte pro messreihe
     soils_output_file = path / "02_16_Ergebnisse.xlsx"
     soils_output_handler = pandas.ExcelWriter(soils_output_file)
-    data_soil = pandas.read_excel(soils_input_file, index_col=0)
 
     # measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-02-21.xlsx"
-    measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-04-06.xlsx"   # (absolute dichte pro messreihe), volumenanteil wasser pro messung, wärmeleitfähigkeit pro messung
+    # (absolute dichte pro messreihe), volumenanteil wasser pro messung, wärmeleitfähigkeit pro messung
+    # measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-04-06.xlsx"
+    measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-07-10.xlsx"
     measurements_output_file = path / "model_fit.xlsx"
     measurements_output_handler = pandas.ExcelWriter(measurements_output_file)
     data_measurement_sheets = pandas.read_excel(measurements_input_file, sheet_name=None)
@@ -108,56 +110,53 @@ def main() -> None:
     thermal_conductivity_quartz = 7.7   # metall?
 
     scatter_data = {
-        "Markert":          {"model": [], "data": []},
-        "Brakelmann":       {"model": [], "data": []},
-        "Markle":           {"model": [], "data": []},
-        "Hu":               {"model": [], "data": []},
-        "Markert spez. u.": {"model": [], "data": []},
-        "Markert spez. p.": {"model": [], "data": []},
-        "Markert Lu":       {"model": [], "data": []}
+        "Markert":          {"model": [], "data": [], "is_punctual": [], "is_in_range": [], "is_tu": []},
+        "Brakelmann":       {"model": [], "data": [], "is_punctual": [], "is_in_range": [], "is_tu": []},
+        "Markle":           {"model": [], "data": [], "is_punctual": [], "is_in_range": [], "is_tu": []},
+        "Hu":               {"model": [], "data": [], "is_punctual": [], "is_in_range": [], "is_tu": []},
+        "Markert spez. u.": {"model": [], "data": [], "is_punctual": [], "is_in_range": [], "is_tu": []},
+        "Markert spez. p.": {"model": [], "data": [], "is_punctual": [], "is_in_range": [], "is_tu": []},
+        "Markert Lu":       {"model": [], "data": [], "is_punctual": [], "is_in_range": [], "is_tu": []},
     }
 
     measurement_output = {
-        "Messreihe":            [],
-        "#Messungen":           [],
-        "DIF Markert":          [],
-        "DIF Brakelmann":       [],
-        "DIF Markle":           [],
-        "DIF Hu":               [],
-        "DIF Markert spez. u.": [],
-        "DIF Markert spez. p.": [],
-        "DIF Markert Lu":       [],
-        "MSE Markert":          [],
-        "MSE Brakelmann":       [],
-        "MSE Markle":           [],
-        "MSE Hu":               [],
-        "MSE Markert spez. u.": [],
-        "MSE Markert spez. p.": [],
-        "MSE Markert Lu":       [],
-        "STD Markert":          [],
-        "STD Brakelmann":       [],
-        "STD Markle":           [],
-        "STD Hu":               [],
-        "STD Markert spez. u.": [],
-        "STD Markert spez. p.": [],
-        "STD Markert Lu":       []
+        "Messreihe":             [],
+        "#Messungen":            [],
+        "RMSE Markert":          [],
+        "RMSE Brakelmann":       [],
+        "RMSE Markle":           [],
+        "RMSE Hu":               [],
+        "RMSE Markert spez. u.": [],
+        "RMSE Markert spez. p.": [],
+        "RMSE Markert Lu":       [],
+        "DIR Markert":           [],
+        "DIR Brakelmann":        [],
+        "DIR Markle":            [],
+        "DIR Hu":                [],
+        "DIR Markert spez. u.":  [],
+        "DIR Markert spez. p.":  [],
+        "DIR Markert Lu":        [],
     }
 
     overview_sheet = data_measurement_sheets.get("Übersicht")
-    for n, col in enumerate(data_soil.columns):
+    for row_index, (n, row) in enumerate(overview_sheet.iterrows()):
+        if row_index + 1 == 30:
+            pass
+
         # get cells starting from the 7th column and the 2nd row to the last row
-        each_range_str = overview_sheet.iloc[(n, 6)]
+        each_range_str = row[7]
         each_range = tuple(float(x) / 100. for x in each_range_str.split(","))
 
-        each_sheet = data_measurement_sheets.get(f"{n+1:d}")
+        each_sheet = data_measurement_sheets.get(f"{row_index + 1:d}")
         if each_sheet is None:
-            print(f"Sheet {n+1:d} not found")
+            print(f"Sheet {row_index + 1:d} not found")
             break
 
-        short_name, percentage_sand, percentage_silt, percentage_clay, density_soil_non_si = data_soil[col].values  # KA5 name, anteil sand, anteil schluff, anteil lehm, dichte
+        short_name, percentage_sand, percentage_silt, percentage_clay, density_soil_non_si, soil_type = row.values[1:7]  # KA5 name, anteil sand, anteil schluff, anteil lehm, dichte
+        measurement_type = row.values[10]  # Messungstyp
         density_soil = density_soil_non_si * 1000.  # g/cm3 -> kg/m3
         porosity_ratio = 1. - density_soil / particle_density
-        print(f"{col:d} \t fSand={percentage_sand:.0f}, fSilt={percentage_silt:.0f}, fClay={percentage_clay:.0f}")
+        print(f"{row_index + 1:d} \t fSand={percentage_sand:.0f}, fSilt={percentage_silt:.0f}, fClay={percentage_clay:.0f}")
 
         # volumetrischer Sättigungswassergehalt [m3/m3]
         print(porosity_ratio)
@@ -166,14 +165,28 @@ def main() -> None:
         bound_hi = max(each_range)
 
         theta_array = each_sheet["θ [cm3/cm3]"].to_numpy()
-        filter_array = (bound_lo <= theta_array) & (theta_array <= bound_hi)
+        is_punctual = "punctual" in measurement_type.lower()
+        is_tu = "t/u" in soil_type.lower()
+        is_in_range = (theta_array >= bound_lo) & (bound_hi >= theta_array)
+
+        lambda_array = each_sheet["λ [W/(m∙K)]"].to_numpy()
+        filter_array = (
+                numpy.isfinite(lambda_array)
+                & (0 < theta_array)
+                & numpy.array([not is_punctual] * len(lambda_array))
+                & numpy.array([not is_tu] * len(lambda_array))
+                & is_in_range
+        )
         theta_measurement = theta_array[filter_array]
         # theta_measurement = each_sheet["θ [cm3/cm3]"]
-        lambda_array = each_sheet["λ [W/(m∙K)]"].to_numpy()
         lambda_measurement = lambda_array[filter_array]
 
+        if len(theta_measurement) < 1 or len(lambda_measurement) < 1:
+            print(f"Skipping {row_index + 1:d} due to missing data")
+            continue
+
         # Sättigung
-        steps = numpy.linspace(1, 0, num=50, endpoint=True)[::-1]
+        steps = numpy.linspace(1, 0, num=50, endpoint=False)[::-1]
 
         # Wassergehalt
         theta_range = steps * porosity_ratio
@@ -241,24 +254,8 @@ def main() -> None:
             density_soil_non_si)
 
         no_measurements = len(lambda_measurement)
-        measurement_output["Messreihe"].append(n + 1)
+        measurement_output["Messreihe"].append(row_index + 1)
         measurement_output["#Messungen"].append(no_measurements)
-
-        # sum of differences (average difference per point)
-        markert_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_markert_ideal)) / no_measurements
-        brakelmann_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_brakelmann_ideal)) / no_measurements
-        markle_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_markle_ideal)) / no_measurements
-        hu_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_hu_ideal)) / no_measurements
-        markert_specific_unpacked_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_markert_specific_unpacked)) / no_measurements
-        markert_specific_packed_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_markert_specific_packed)) / no_measurements
-        markert_lu_avrg_diff = numpy.sum(numpy.abs(lambda_measurement - lambda_markert_lu)) / no_measurements
-        measurement_output["DIF Markert"].append(markert_avrg_diff)
-        measurement_output["DIF Brakelmann"].append(brakelmann_avrg_diff)
-        measurement_output["DIF Markle"].append(markle_avrg_diff)
-        measurement_output["DIF Hu"].append(hu_avrg_diff)
-        measurement_output["DIF Markert spez. u."].append(markert_specific_unpacked_avrg_diff)
-        measurement_output["DIF Markert spez. p."].append(markert_specific_packed_avrg_diff)
-        measurement_output["DIF Markert Lu"].append(markert_lu_avrg_diff)
 
         markert_sse = numpy.sum((lambda_measurement - lambda_markert_ideal) ** 2)
         brakelmann_sse = numpy.sum((lambda_measurement - lambda_brakelmann_ideal) ** 2)
@@ -267,36 +264,74 @@ def main() -> None:
         markert_specific_unpacked_sse = numpy.sum((lambda_measurement - lambda_markert_specific_unpacked) ** 2)
         markert_specific_packed_sse = numpy.sum((lambda_measurement - lambda_markert_specific_packed) ** 2)
         markert_lu_sse = numpy.sum((lambda_measurement - lambda_markert_lu) ** 2)
-        measurement_output["MSE Markert"].append(markert_sse / no_measurements)
-        measurement_output["MSE Brakelmann"].append(brakelmann_sse / no_measurements)
-        measurement_output["MSE Markle"].append(markle_sse / no_measurements)
-        measurement_output["MSE Hu"].append(hu_sse / no_measurements)
-        measurement_output["MSE Markert spez. u."].append(markert_specific_unpacked_sse / no_measurements)
-        measurement_output["MSE Markert spez. p."].append(markert_specific_packed_sse / no_measurements)
-        measurement_output["MSE Markert Lu"].append(markert_lu_sse / no_measurements)
 
-        measurement_output["STD Markert"].append(numpy.sqrt(markert_sse / (no_measurements - 1)))
-        measurement_output["STD Brakelmann"].append(numpy.sqrt(brakelmann_sse / (no_measurements - 1)))
-        measurement_output["STD Markle"].append(numpy.sqrt(markle_sse / (no_measurements - 1)))
-        measurement_output["STD Hu"].append(numpy.sqrt(hu_sse / (no_measurements - 1)))
-        measurement_output["STD Markert spez. u."].append(numpy.sqrt(markert_specific_unpacked_sse / (no_measurements - 1)))
-        measurement_output["STD Markert spez. p."].append(numpy.sqrt(markert_specific_packed_sse / (no_measurements - 1)))
-        measurement_output["STD Markert Lu"].append(numpy.sqrt(markert_lu_sse / (no_measurements - 1)))
+        measurement_output["RMSE Markert"].append(numpy.sqrt(markert_sse / no_measurements))
+        measurement_output["RMSE Brakelmann"].append(numpy.sqrt(brakelmann_sse / no_measurements))
+        measurement_output["RMSE Markle"].append(numpy.sqrt(markle_sse / no_measurements))
+        measurement_output["RMSE Hu"].append(numpy.sqrt(hu_sse / no_measurements))
+        measurement_output["RMSE Markert spez. u."].append(numpy.sqrt(markert_specific_unpacked_sse / no_measurements))
+        measurement_output["RMSE Markert spez. p."].append(numpy.sqrt(markert_specific_packed_sse / no_measurements))
+        measurement_output["RMSE Markert Lu"].append(numpy.sqrt(markert_lu_sse / no_measurements))
+
+        markert_avrg_dir = numpy.sum(lambda_measurement - lambda_markert_ideal) / no_measurements
+        brakelmann_avrg_dir = numpy.sum(lambda_measurement - lambda_brakelmann_ideal) / no_measurements
+        markle_avrg_dir = numpy.sum(lambda_measurement - lambda_markle_ideal) / no_measurements
+        hu_avrg_dir = numpy.sum(lambda_measurement - lambda_hu_ideal) / no_measurements
+        markert_specific_unpacked_avrg_dir = numpy.sum(lambda_measurement - lambda_markert_specific_unpacked) / no_measurements
+        markert_specific_packed_avrg_dir = numpy.sum(lambda_measurement - lambda_markert_specific_packed) / no_measurements
+        markert_lu_avrg_dir = numpy.sum(lambda_measurement - lambda_markert_lu) / no_measurements
+        measurement_output["DIR Markert"].append(markert_avrg_dir)
+        measurement_output["DIR Brakelmann"].append(brakelmann_avrg_dir)
+        measurement_output["DIR Markle"].append(markle_avrg_dir)
+        measurement_output["DIR Hu"].append(hu_avrg_dir)
+        measurement_output["DIR Markert spez. u."].append(markert_specific_unpacked_avrg_dir)
+        measurement_output["DIR Markert spez. p."].append(markert_specific_packed_avrg_dir)
+        measurement_output["DIR Markert Lu"].append(markert_lu_avrg_dir)
+
+        measurement_type_sequence = ["punctual" in measurement_type.lower()] * no_measurements
+        soil_type_sequence = ["t/u" in soil_type.lower()] * no_measurements
 
         scatter_data["Markert"]["model"].extend(lambda_markert_ideal)
         scatter_data["Markert"]["data"].extend(lambda_measurement)
+        scatter_data["Markert"]["is_punctual"].extend(measurement_type_sequence)
+        scatter_data["Markert"]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
+        scatter_data["Markert"]["is_tu"].extend(soil_type_sequence)
+
         scatter_data["Brakelmann"]["model"].extend(lambda_brakelmann_ideal)
         scatter_data["Brakelmann"]["data"].extend(lambda_measurement)
+        scatter_data["Brakelmann"]["is_punctual"].extend(measurement_type_sequence)
+        scatter_data["Brakelmann"]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
+        scatter_data["Brakelmann"]["is_tu"].extend(soil_type_sequence)
+
         scatter_data["Markle"]["model"].extend(lambda_markle_ideal)
         scatter_data["Markle"]["data"].extend(lambda_measurement)
+        scatter_data["Markle"]["is_punctual"].extend(measurement_type_sequence)
+        scatter_data["Markle"]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
+        scatter_data["Markle"]["is_tu"].extend(soil_type_sequence)
+
         scatter_data["Hu"]["model"].extend(lambda_hu_ideal)
         scatter_data["Hu"]["data"].extend(lambda_measurement)
+        scatter_data["Hu"]["is_punctual"].extend(measurement_type_sequence)
+        scatter_data["Hu"]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
+        scatter_data["Hu"]["is_tu"].extend(soil_type_sequence)
+
         scatter_data["Markert spez. u."]["model"].extend(lambda_markert_specific_unpacked)
         scatter_data["Markert spez. u."]["data"].extend(lambda_measurement)
+        scatter_data["Markert spez. u."]["is_punctual"].extend(measurement_type_sequence)
+        scatter_data["Markert spez. u."]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
+        scatter_data["Markert spez. u."]["is_tu"].extend(soil_type_sequence)
+
         scatter_data["Markert spez. p."]["model"].extend(lambda_markert_specific_packed)
         scatter_data["Markert spez. p."]["data"].extend(lambda_measurement)
+        scatter_data["Markert spez. p."]["is_punctual"].extend(measurement_type_sequence)
+        scatter_data["Markert spez. p."]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
+        scatter_data["Markert spez. p."]["is_tu"].extend(soil_type_sequence)
+
         scatter_data["Markert Lu"]["model"].extend(lambda_markert_lu)
         scatter_data["Markert Lu"]["data"].extend(lambda_measurement)
+        scatter_data["Markert Lu"]["is_punctual"].extend(measurement_type_sequence)
+        scatter_data["Markert Lu"]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
+        scatter_data["Markert Lu"]["is_tu"].extend(soil_type_sequence)
 
         # Modelle
         lambda_markert = markert_all(
@@ -372,18 +407,18 @@ def main() -> None:
         """
         # write to file
         soil_output = {
-            f"Feuchte {n + 1:d}, {short_name:s} [m³%]":                         theta_range,
-            f"Markert {n + 1:d}, {short_name:s} [W/(mK)]":                      lambda_markert,
-            f"Brakelmann {n + 1:d}, {short_name:s} [W/(mK)]":                   lambda_brakelmann,
-            f"Markle {n + 1:d}, {short_name:s} [W/(mK)]":                       lambda_markle,
-            f"Hu {n + 1:d}, {short_name:s} [W/(mK)]":                           lambda_hu,
-            f"Markert spezifisch unpacked {n + 1:d}, {short_name:s} [W/(mK)]":  lambda_markert_specific_unpacked,
-            f"Markert spezifisch packed {n + 1:d}, {short_name:s} [W/(mK)]":    lambda_markert_specific_packed,
-            f"Markert-Lu {n + 1:d}, {short_name:s} [W/(mK)]":                   lambda_markert_lu,
+            f"Feuchte {row_index + 1:d}, {short_name:s} [m³%]":                         theta_range,
+            f"Markert {row_index + 1:d}, {short_name:s} [W/(mK)]":                      lambda_markert,
+            f"Brakelmann {row_index + 1:d}, {short_name:s} [W/(mK)]":                   lambda_brakelmann,
+            f"Markle {row_index + 1:d}, {short_name:s} [W/(mK)]":                       lambda_markle,
+            f"Hu {row_index + 1:d}, {short_name:s} [W/(mK)]":                           lambda_hu,
+            f"Markert spezifisch unpacked {row_index + 1:d}, {short_name:s} [W/(mK)]":  lambda_markert_specific_unpacked,
+            f"Markert spezifisch packed {row_index + 1:d}, {short_name:s} [W/(mK)]":    lambda_markert_specific_packed,
+            f"Markert-Lu {row_index + 1:d}, {short_name:s} [W/(mK)]":                   lambda_markert_lu,
         }
 
         soil_df = pandas.DataFrame(soil_output)
-        soil_df.to_excel(soils_output_handler, sheet_name=f"{n + 1:d} {short_name:s}")
+        soil_df.to_excel(soils_output_handler, sheet_name=f"{row_index + 1:d} {short_name:s}")
 
     for method, info in scatter_data.items():
         print(f"{method:s}: scatterplotting...")
@@ -397,12 +432,21 @@ def main() -> None:
             if not numpy.isnan(delta):
                 direction += delta
                 measurements += 1
-        pyplot.scatter(info["data"], info["model"], c="black", alpha=.3, s=1)
+
         pyplot.title(f"{method:s} (direction: {direction / measurements:.2f})")
-        pyplot.plot([0, 4], [0, 4], c="blue", linestyle="--")
+        pyplot.plot([0, 4], [0, 4], c="black", linestyle="--", alpha=.3)
+
+        non_punctual_x = [each_x for each_x, each_is_punctual in zip(info["data"], info["is_punctual"]) if not each_is_punctual]
+        non_punctual_y = [each_y for each_y, each_is_punctual in zip(info["model"], info["is_punctual"]) if not each_is_punctual]
+        pyplot.scatter(non_punctual_x, non_punctual_y, c="blue", alpha=.1, s=.5)
+
+        punctual_x = [each_x for each_x, each_is_punctual in zip(info["data"], info["is_punctual"]) if each_is_punctual]
+        punctual_y = [each_y for each_y, each_is_punctual in zip(info["model"], info["is_punctual"]) if each_is_punctual]
+        pyplot.scatter(punctual_x, punctual_y, c="black", alpha=.8, s=8, linewidths=1, marker="x")
+
         pyplot.xlim(0, 4)
         pyplot.ylim(0, 4)
-        pyplot.savefig(f"plots/scatter_{method:s}.png")
+        pyplot.savefig(f"plots/scatter_{method:s}.pdf")
 
     # write xls
     measurements_df = pandas.DataFrame(measurement_output)

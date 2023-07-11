@@ -3,21 +3,17 @@ import numpy
 from utils import Model, Available
 
 
-class Hu(Model):
-    @staticmethod
-    def output(data: Available) -> numpy.ndarray:
-        steps = data
-        steps, lam_s, lam_w, porosity, rho_s, rho_si
-        ke_hu = .9878 + .1811 * numpy.log(steps)
-        # lambda_s = 3.35
-        # lambda_w = 0.6
-        # lambda_air = 0.0246
-        lam_dry = (0.135 * rho_si + 64.7) / (rho_s - 0.947 * rho_si)
-        ke_hu[ke_hu == numpy.inf] = lam_dry
-        ke_hu[ke_hu == -numpy.inf] = lam_dry
-        lam_sat = lam_w ** porosity * lam_s ** (1 - porosity)
-        lam_hu = lam_dry + ke_hu * (lam_sat - lam_dry)
-        return lam_hu
+def hu(steps, lam_s, lam_w, porosity, rho_s, rho_si):
+    ke_hu = .9878 + .1811 * numpy.log(steps)
+    # lambda_s = 3.35
+    # lambda_w = 0.6
+    # lambda_air = 0.0246
+    lam_dry = (0.135 * rho_si + 64.7) / (rho_s - 0.947 * rho_si)
+    ke_hu[ke_hu == numpy.inf] = lam_dry
+    ke_hu[ke_hu == -numpy.inf] = lam_dry
+    lam_sat = lam_w ** porosity * lam_s ** (1 - porosity)
+    lam_hu = lam_dry + ke_hu * (lam_sat - lam_dry)
+    return lam_hu
 
 
 def markle(steps, lam_s, porosity, lam_w, rho_s, rho_si):
