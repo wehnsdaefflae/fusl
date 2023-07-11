@@ -273,13 +273,13 @@ def main() -> None:
         measurement_output["RMSE Markert spez. p."].append(numpy.sqrt(markert_specific_packed_sse / no_measurements))
         measurement_output["RMSE Markert Lu"].append(numpy.sqrt(markert_lu_sse / no_measurements))
 
-        markert_avrg_dir = numpy.sum(lambda_measurement - lambda_markert_ideal) / no_measurements
-        brakelmann_avrg_dir = numpy.sum(lambda_measurement - lambda_brakelmann_ideal) / no_measurements
-        markle_avrg_dir = numpy.sum(lambda_measurement - lambda_markle_ideal) / no_measurements
-        hu_avrg_dir = numpy.sum(lambda_measurement - lambda_hu_ideal) / no_measurements
-        markert_specific_unpacked_avrg_dir = numpy.sum(lambda_measurement - lambda_markert_specific_unpacked) / no_measurements
-        markert_specific_packed_avrg_dir = numpy.sum(lambda_measurement - lambda_markert_specific_packed) / no_measurements
-        markert_lu_avrg_dir = numpy.sum(lambda_measurement - lambda_markert_lu) / no_measurements
+        markert_avrg_dir = numpy.sum(lambda_markert_ideal - lambda_measurement) / no_measurements
+        brakelmann_avrg_dir = numpy.sum(lambda_brakelmann_ideal - lambda_measurement) / no_measurements
+        markle_avrg_dir = numpy.sum(lambda_markle_ideal - lambda_measurement) / no_measurements
+        hu_avrg_dir = numpy.sum(lambda_hu_ideal - lambda_measurement) / no_measurements
+        markert_specific_unpacked_avrg_dir = numpy.sum(lambda_markert_specific_unpacked - lambda_measurement) / no_measurements
+        markert_specific_packed_avrg_dir = numpy.sum(lambda_markert_specific_packed - lambda_measurement) / no_measurements
+        markert_lu_avrg_dir = numpy.sum(lambda_markert_lu - lambda_measurement) / no_measurements
         measurement_output["DIR Markert"].append(markert_avrg_dir)
         measurement_output["DIR Brakelmann"].append(brakelmann_avrg_dir)
         measurement_output["DIR Markle"].append(markle_avrg_dir)
