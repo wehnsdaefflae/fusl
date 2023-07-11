@@ -173,9 +173,9 @@ def main() -> None:
         filter_array = (
                 numpy.isfinite(lambda_array)
                 & (0 < theta_array)
-                & numpy.array([not is_punctual] * len(lambda_array))
-                & numpy.array([not is_tu] * len(lambda_array))
-                & is_in_range
+                # & numpy.array([not is_punctual] * len(lambda_array))
+                # & numpy.array([not is_tu] * len(lambda_array))
+                # & is_in_range
         )
         theta_measurement = theta_array[filter_array]
         # theta_measurement = each_sheet["θ [cm3/cm3]"]
@@ -434,7 +434,7 @@ def main() -> None:
                 measurements += 1
 
         pyplot.title(f"{method:s} (direction: {direction / measurements:.2f})")
-        pyplot.plot([0, 4], [0, 4], c="black", linestyle="--", alpha=.3)
+        pyplot.plot([0, 3], [0, 3], c="black", linestyle="--", alpha=.3)
 
         non_punctual_x = [each_x for each_x, each_is_punctual in zip(info["data"], info["is_punctual"]) if not each_is_punctual]
         non_punctual_y = [each_y for each_y, each_is_punctual in zip(info["model"], info["is_punctual"]) if not each_is_punctual]
@@ -444,8 +444,8 @@ def main() -> None:
         punctual_y = [each_y for each_y, each_is_punctual in zip(info["model"], info["is_punctual"]) if each_is_punctual]
         pyplot.scatter(punctual_x, punctual_y, c="black", alpha=.8, s=8, linewidths=1, marker="x")
 
-        pyplot.xlim(0, 4)
-        pyplot.ylim(0, 4)
+        pyplot.xlim(0, 3)
+        pyplot.ylim(0, 3)
         pyplot.savefig(f"plots/scatter_{method:s}.pdf")
 
     # write xls
