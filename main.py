@@ -115,6 +115,207 @@ class Methods:
         lam_markert_lu = lambda_dry + numpy.exp(beta - theta ** (-sigma))
         return lam_markert_lu
 
+    @staticmethod
+    def _untested_devries(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+        """
+        - Some assumptions are made here, especially about how \( \Theta_k \) is used.
+        - The data for \( \Lambda_i \) and \( g_i \) are directly taken from the table provided.
+        - Adjustments might be needed based on more specifics about the DeVries model and the usage of the equations, especially about the range conditions for \( \Theta_L \).
+        - The model uses only the data and equations provided, and further details (like how \( \Theta_k \) is determined) would be needed to complete it.
+        - Ensure that the provided data is sufficient and accurately represented in the code.
+        """
+
+        # Constants from the table
+        lambda_water = 0.57
+        lambda_vapor_air = 0.035 + 0.298 * theta / arguments.porosity_ratio
+        lambda_quartz = 8.8
+        lambda_other_minerals = 2.0
+        lambda_organic_matter = 0.25
+
+        # Shape factors from the table
+        g = [0, 0, 0.125, 0.125, 0.5]
+
+        # Computing k values using equation (4)
+        k = [1]
+        for i in range(1, 5):
+            lambda_i = [lambda_water, lambda_vapor_air, lambda_quartz, lambda_other_minerals, lambda_organic_matter][i]
+            g_i = g[i]
+            k_val = (2/3) * (1 / (1 + g_i * (lambda_i / lambda_water - 1))) + (1/3) * (1 / (1 + (lambda_i / lambda_water - 1) * (1 - 2 * g_i)))
+            k.append(k_val)
+
+        # I REMOVED IT. Computing lambda_dry using equation (3)
+        # weird_sum = sum([k[i] * [Lambda_water, Lambda_vapor_air, Lambda_quartz, Lambda_other_minerals, Lambda_organic_matter][i] for i in range(5)])
+        # weird_factor = (arguments.porosity_ratio * Lambda_vapor_air + weird_sum)
+        # lambda_dry = 1.25 * weird_factor / (arguments.porosity_ratio + sum([k[i] for i in range(5)]))
+
+        # Using the equation (1) to compute lambda, ensuring operations are vectorized
+        numerator = sum([k[i] * [lambda_water, lambda_vapor_air, lambda_quartz, lambda_other_minerals, lambda_organic_matter][i] for i in range(5)]) * theta
+        denominator = sum([k[i] * theta for i in range(5)])
+        lambda_result = numerator / denominator
+
+        return lambda_result
+
+    @staticmethod
+    def _untested_sadeghi(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+        """
+        I made assumptions about certain variables (like `lam_sat`, `theta_c`, and `theta_s`) as they were not clearly defined in the provided context. You might
+        want to adjust these based on more detailed information or context.
+        """
+
+        lam_sat = arguments.thermal_conductivity_sand  # Assuming that the thermal conductivity of sand is equivalent to lam_sat as it's not clearly defined
+        lam_dry = (.135 * arguments.density_soil + 64.7) / (arguments.particle_density - .947 * arguments.density_soil)
+
+        theta_c = arguments.porosity_ratio  # Assuming that porosity_ratio is equivalent to theta_c as it's not clearly defined
+        theta_s = 1.0  # Assuming full saturation value for theta_s as it's not clearly defined in the given context
+
+        t_s = (lam_sat ** (1 / theta_s))
+        t = 1 / t_s
+
+        a_1 = (theta_c * lam_sat ** t - (theta_s - theta_c) * lam_dry ** t) / (lam_sat ** t - lam_dry ** t)
+        a_2 = (theta_s - theta_c) / (lam_sat ** t - lam_dry ** t)
+        a_3 = -theta_c * lam_sat ** t * lam_dry ** t / (lam_sat ** t - lam_dry ** t)
+
+        lambda_values = ((- (a_1 - theta) + numpy.sqrt((a_1 - theta) ** 2 - 4 * a_2 * a_3)) / (2 * a_2)) ** t_s
+
+        return lambda_values
+
+    @staticmethod
+    def _untested_lu_et_al(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+        """
+        seems fine
+        """
+        # Extract the parameters from arguments
+        f_sand = arguments.percentage_sand
+        f_clay = arguments.percentage_clay
+        rho_b = arguments.density_soil_non_si
+
+        # Implement the provided equations
+        lambda_dry = 0.51 - 0.56 * arguments.porosity_ratio
+        delta = 0.67 * f_clay + 0.24
+        beta = 1.97 * f_sand + 1.87 * rho_b - 1.36 * rho_b * f_sand - 0.95
+
+        lambda_theta = numpy.exp(beta - theta ** (-delta)) + lambda_dry
+        return lambda_theta
+
+    @staticmethod
+    def _untested_kersten_model(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+        """
+        seems fine
+        """
+        # Determine if the soil contains more than 50% sand or less
+        is_sandy = (arguments.percentage_sand / 100) > 0.5
+
+        # Apply the respective formula based on sandiness
+        if is_sandy:
+            lambda_val = 0.1442 * (0.7 * numpy.log(theta / arguments.density_soil) + 0.4) * 10 ** (0.6243 * theta)
+        else:
+            lambda_val = 0.1442 * (0.9 * numpy.log(theta / arguments.density_soil) - 0.2) * 10 ** (0.6243 * theta)
+
+        return lambda_val
+
+    @staticmethod
+    def _untested_johansen(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+        """
+        seems fine
+        """
+        # Constants
+        lam_w = 0.57  # Thermal conductivity of water
+
+        # Porosity
+        phi = 1 - arguments.density_soil / arguments.particle_density
+
+        # Thermal conductivity of natural dry soils
+        lam_dry = (0.135 * arguments.density_soil + 64.7) / (arguments.particle_density - 0.947 * arguments.density_soil)
+
+        # Volume fraction of quartz
+        phi_q = 0.5 * arguments.percentage_sand
+
+        # Thermal conductivity of solids
+        if phi_q < 0.2:
+            lam_other = 3.0  # W·m{-1}°·K{-1}
+        else:
+            lam_other = 2.0  # W·m{-1}°·K{-1}
+        lam_q = 7.7  # W·m{-1}°·K{-1} for quartz
+        lam_s = lam_q ** phi_q * lam_other ** (1 - phi_q)
+
+        # Thermal conductivity of unfrozen soils at saturation
+        lam_sat = lam_w ** phi * lam_s ** (1 - phi)
+
+        # Saturations
+        S = theta / arguments.porosity_ratio
+
+        # Formalism for interpolation between lam_dry and lam_sat
+        Ke = numpy.where(S > 0.05, 1 + 0.7 * numpy.log10(S), 1 + numpy.log10(S))
+
+        # Thermal conductivity of the soil
+        lam = lam_dry + Ke * (lam_sat - lam_dry)
+
+        return lam
+
+    @staticmethod
+    def _untested_cote_konrad(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+        """
+        I've inferred the classification of soil types based on the given percentages for sand, silt, and clay. You may want to adjust the thresholds based on more
+        accurate soil classifications if available.
+        """
+        # Define constants
+        chi = 0.75
+        eta = 1.2
+
+        # Porosity
+        phi = 1 - arguments.density_soil / arguments.particle_density
+
+        # Derive coefficient k based on soil type
+        if arguments.percentage_sand >= 50:  # Assuming Gravel and coarse sand have high sand percentage
+            k = 4.6
+        elif 10 <= arguments.percentage_sand < 50:  # Assuming Medium and fine sand criteria
+            k = 3.55
+        elif arguments.percentage_clay > 50 or arguments.percentage_silt > 50:  # Silty and clayey soils
+            k = 1.9
+        else:  # Organic fibrous soils or any other types not explicitly stated
+            k = 0.6
+
+        # Compute the Kersten coefficient Ke
+        S = theta / arguments.porosity_ratio
+        Ke = k * S * (1 + (k - 1) * S)
+
+        # Estimate thermal conductivity at the dry end
+        lam_dry = chi * 10 ** (-eta * phi)
+
+        # For the given model, the thermal conductivity estimation is based on the Johansen model with a modified Kersten coefficient
+        # Thermal conductivity of the soil using the Johansen equation
+        lam = lam_dry + Ke * (arguments.thermal_conductivity_sand - lam_dry)
+
+        return lam
+
+    @staticmethod
+    def yang(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+        """
+        - The content of quartz ϕ quartz is inferred to be directly proportional to the sand percentage. Adjust this if there's a more accurate relation or data
+        available.
+        - I took λ dry from the previous Markle model. Adjust this if a different dry thermal conductivity is desired or if λ dry is provided explicitly for
+        this model.
+        """
+        # Constants
+        k_T = 0.36
+        S = theta / arguments.porosity_ratio
+        phi = 1 - arguments.density_soil / arguments.particle_density
+        phi_quartz = arguments.percentage_sand / 100  # Assuming quartz content is directly proportional to sand percentage
+
+        # Interpolation coefficient Ke
+        Ke = numpy.exp(k_T * (1 - 1 / S))
+
+        # Thermal conductivity at the dry end, inferred from other models
+        lam_dry = (.135 * arguments.density_soil + 64.7) / (arguments.particle_density - .947 * arguments.density_soil)
+
+        # Estimate thermal conductivity at saturation
+        lam_sat = (0.5 ** phi) * (7.7 ** phi_quartz * 2 ** (1 - phi_quartz)) ** (1 - phi)
+
+        # Compute thermal conductivity
+        lam_yang = lam_dry + Ke * (lam_sat - lam_dry)
+
+        return lam_yang
+
     @classmethod
     def get_static_methods(cls) -> list[Callable[..., any]]:
         return [
