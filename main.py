@@ -1,6 +1,9 @@
 # !/usr/bin/env python3
 # coding=utf-8
+import dataclasses
+import inspect
 from pathlib import Path
+from typing import Callable
 
 import numpy
 from matplotlib import pyplot
@@ -9,135 +12,153 @@ import pandas
 numpy.seterr(all='raise')
 
 
-def hu(theta_range, lam_s, lam_w, porosity, rho_s, rho_si):
-    steps = theta_range / porosity
-    ke_hu = .9878 + .1811 * numpy.log(steps)
-    # lambda_s = 3.35
-    # lambda_w = 0.6
-    # lambda_air = 0.0246
-    lam_dry = (0.135 * rho_si + 64.7) / (rho_s - 0.947 * rho_si)
-    ke_hu[ke_hu == numpy.inf] = lam_dry
-    ke_hu[ke_hu == -numpy.inf] = lam_dry
-    lam_sat = lam_w ** porosity * lam_s ** (1 - porosity)
-    lam_hu = lam_dry + ke_hu * (lam_sat - lam_dry)
-    return lam_hu
+class Methods:
+    @dataclasses.dataclass
+    class Arguments:
+        thermal_conductivity_sand: float
+        percentage_clay: float
+        percentage_sand: float
+        percentage_silt: float
+        porosity_ratio: float
+        density_soil_non_si: float
+        particle_density: float
+        density_soil: float
 
+    @staticmethod
+    def hu(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+        lam_w = thermal_conductivity_water = .57  # wiki: 0.597 https://de.wikipedia.org/wiki/Eigenschaften_des_Wassers
+        steps = theta / arguments.porosity_ratio
+        ke_hu = .9878 + .1811 * numpy.log(steps)
+        # lambda_s = 3.35
+        # lambda_w = 0.6
+        # lambda_air = 0.0246
+        lam_dry = (0.135 * arguments.density_soil + 64.7) / (arguments.particle_density - 0.947 * arguments.density_soil)
+        ke_hu[ke_hu == numpy.inf] = lam_dry
+        ke_hu[ke_hu == -numpy.inf] = lam_dry
+        lam_sat = lam_w ** arguments.porosity_ratio * arguments.thermal_conductivity_sand ** (1 - arguments.porosity_ratio)
+        lam_hu = lam_dry + ke_hu * (lam_sat - lam_dry)
+        return lam_hu
 
-def markle(theta_range, lam_s, porosity, lam_w, rho_s, rho_si):
-    zeta = 8.9
-    steps = theta_range / porosity
-    ke_ma = 1. - numpy.exp(-zeta * steps)
-    lam_dry = (.135 * rho_si + 64.7) / (rho_s - .947 * rho_si)
-    lam_sat = lam_w ** porosity * lam_s ** (1 - porosity)
-    lam_markle = lam_dry + ke_ma * (lam_sat - lam_dry)
-    return lam_markle
+    @staticmethod
+    def markle(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+        lam_w = thermal_conductivity_water = .57  # wiki: 0.597 https://de.wikipedia.org/wiki/Eigenschaften_des_Wassers
+        zeta = 8.9
+        steps = theta / arguments.porosity_ratio
+        ke_ma = 1. - numpy.exp(-zeta * steps)
+        lam_dry = (.135 * arguments.density_soil + 64.7) / (arguments.particle_density - .947 * arguments.density_soil)
+        lam_sat = lam_w ** arguments.porosity_ratio * arguments.thermal_conductivity_sand ** (1 - arguments.porosity_ratio)
+        lam_markle = lam_dry + ke_ma * (lam_sat - lam_dry)
+        return lam_markle
 
+    @staticmethod
+    def brakelmann(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+        lam_w = thermal_conductivity_water = .57  # wiki: 0.597 https://de.wikipedia.org/wiki/Eigenschaften_des_Wassers
+        lam_b = .0812 * arguments.percentage_sand + .054 * arguments.percentage_silt + .02 * arguments.percentage_clay
+        # rho_p = 0.0263 * f_sand + 0.0265 * f_silt + 0.028 * f_clay
+        steps = theta / arguments.porosity_ratio
+        lam_brakelmann = lam_w ** arguments.porosity_ratio * lam_b ** (1. - arguments.porosity_ratio) * numpy.exp(-3.08 * arguments.porosity_ratio * (1. - steps) ** 2)
+        return lam_brakelmann
 
-def brakelmann(theta_range, f_clay, f_sand, f_silt, lam_w, porosity):
-    lam_b = .0812 * f_sand + .054 * f_silt + .02 * f_clay
-    # rho_p = 0.0263 * f_sand + 0.0265 * f_silt + 0.028 * f_clay
-    steps = theta_range / porosity
-    lam_brakelmann = lam_w ** porosity * lam_b ** (1. - porosity) * numpy.exp(-3.08 * porosity * (1. - steps) ** 2)
-    return lam_brakelmann
+    @staticmethod
+    def markert_all(theta: numpy.ndarray, arguments: Arguments, p: tuple[float, ...] | None = None) -> numpy.ndarray:
+        if p is None:
+            sand_silt_loam = +1.21, -1.55, +0.02, +0.25, +2.29, +2.12, -1.04, -2.03
+            p = sand_silt_loam
 
+        lambda_dry = p[0] + p[1] * arguments.porosity_ratio
+        alpha = p[2] * arguments.percentage_clay / 100. + p[3]
+        beta = p[4] * arguments.percentage_sand / 100. + p[5] * arguments.density_soil_non_si + p[6] * arguments.percentage_sand / 100. * arguments.density_soil_non_si + p[7]
+        lam_markert = lambda_dry + numpy.exp(beta - theta ** (-alpha))
+        return lam_markert
 
-def markert_all(theta, f_clay, f_sand, porosity, rho, p: tuple[float, ...] | None = None):
-    if p is None:
-        sand_silt_loam = +1.21, -1.55, +0.02, +0.25, +2.29, +2.12, -1.04, -2.03
-        p = sand_silt_loam
+    @staticmethod
+    def _markert_all(theta: numpy.ndarray, arguments: Arguments, packed: bool = True) -> numpy.ndarray:
+        # p table: 1323, texture groups: 1320, https://www.dropbox.com/s/y6hm5m6necbzkpr/Soil%20Science%20Soc%20of%20Amer%20J%20-%202017%20-%20Markert%20-.pdf?dl=0
 
-    lambda_dry = p[0] + p[1] * porosity
-    alpha = p[2] * f_clay / 100. + p[3]
-    beta = p[4] * f_sand / 100. + p[5] * rho + p[6] * f_sand / 100. * rho + p[7]
-    lam_markert = lambda_dry + numpy.exp(beta - theta ** (-alpha))
-    return lam_markert
+        tg_sand_u = +1.51, -3.07, +1.24, +0.24, +1.87, +2.34, -1.34, -1.32
+        tg_sand_p = +0.72, -0.74, -0.82, +0.22, +1.55, +2.22, -1.36, -0.95
 
+        tg_silt_u = +0.92, -1.08, +0.90, +0.21, +0.14, +1.27, +0.25, -0.33
+        tg_silt_p = +1.83, -2.75, +0.12, +0.22, +5.00, +1.32, -1.56, -0.88
 
-def markert_specific(theta, f_clay, f_silt, f_sand, porosity, rho, packed: bool = True):
-    # p table: 1323, texture groups: 1320, https://www.dropbox.com/s/y6hm5m6necbzkpr/Soil%20Science%20Soc%20of%20Amer%20J%20-%202017%20-%20Markert%20-.pdf?dl=0
+        tg_loam_u = +1.24, -1.55, +0.08, +0.28, +4.26, +1.17, -1.62, -1.19
+        tg_loam_p = +1.79, -2.62, -0.39, +0.25, +3.83, +1.44, -1.11, -2.02
 
-    tg_sand_u = +1.51, -3.07, +1.24, +0.24, +1.87, +2.34, -1.34, -1.32
-    tg_sand_p = +0.72, -0.74, -0.82, +0.22, +1.55, +2.22, -1.36, -0.95
+        if arguments.percentage_silt + 2 * arguments.percentage_clay < 30:
+            # TG Sand; S, LS
+            p = tg_sand_p if packed else tg_sand_u
 
-    tg_silt_u = +0.92, -1.08, +0.90, +0.21, +0.14, +1.27, +0.25, -0.33
-    tg_silt_p = +1.83, -2.75, +0.12, +0.22, +5.00, +1.32, -1.56, -0.88
+        elif 50 < arguments.percentage_silt and arguments.percentage_clay < 27:
+            # TG Silt; Si, SiL
+            p = tg_silt_p if packed else tg_silt_u
 
-    tg_loam_u = +1.24, -1.55, +0.08, +0.28, +4.26, +1.17, -1.62, -1.19
-    tg_loam_p = +1.79, -2.62, -0.39, +0.25, +3.83, +1.44, -1.11, -2.02
+        else:
+            # TG Loam; SL, SCL, SiCL, CL, L
+            p = tg_loam_p if packed else tg_loam_u
 
-    if f_silt + 2 * f_clay < 30:
-        # TG Sand; S, LS
-        p = tg_sand_p if packed else tg_sand_u
+        return Methods.markert_all(theta, arguments, p=p)
 
-    elif 50 < f_silt and f_clay < 27:
-        # TG Silt; Si, SiL
-        p = tg_silt_p if packed else tg_silt_u
+    @staticmethod
+    def markert_specific_packed(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+        return Methods._markert_all(theta, arguments, packed=True)
 
-    else:
-        # TG Loam; SL, SCL, SiCL, CL, L
-        p = tg_loam_p if packed else tg_loam_u
+    @staticmethod
+    def markert_specific_unpacked(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+        return Methods._markert_all(theta, arguments, packed=False)
 
-    return markert_all(theta, f_clay, f_sand, porosity, rho, p=p)
+    @staticmethod
+    def markert_lu(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+        # seite 19, https://www.dropbox.com/s/6iq8z26iahk6s6d/2018-10-25_FAU_TB_Endbericht_Pos.3.1_V3.pdf?dl=0
+        lambda_dry = -.56 * arguments.porosity_ratio + .51
+        sigma = .67 * arguments.percentage_clay / 100. + .24
+        beta = 1.97 * arguments.percentage_sand / 100. + arguments.density_soil_non_si * 1.87 - 1.36 * arguments.percentage_sand / 100. - .95
+        lam_markert_lu = lambda_dry + numpy.exp(beta - theta ** (-sigma))
+        return lam_markert_lu
 
-
-def markert_lu(theta, f_clay, f_sand, porosity, rho):
-    # seite 19, https://www.dropbox.com/s/6iq8z26iahk6s6d/2018-10-25_FAU_TB_Endbericht_Pos.3.1_V3.pdf?dl=0
-    lambda_dry = -.56 * porosity + .51
-    sigma = .67 * f_clay / 100. + .24
-    beta = 1.97 * f_sand / 100. + rho * 1.87 - 1.36 * f_sand / 100. - .95
-    lam_markert_lu = lambda_dry + numpy.exp(beta - theta ** (-sigma))
-    return lam_markert_lu
+    @classmethod
+    def get_static_methods(cls) -> list[Callable[..., any]]:
+        return [
+            value for name, value in inspect.getmembers(cls)
+            if isinstance(inspect.getattr_static(cls, name), staticmethod) and not name.startswith("_")
+        ]
 
 
 def main() -> None:
     path = Path("data/")
 
-    soils_output_file = path / "02_16_Ergebnisse.xlsx"
-    soils_output_handler = pandas.ExcelWriter(soils_output_file)
-
     # measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-02-21.xlsx"
     # (absolute dichte pro messreihe), volumenanteil wasser pro messung, wärmeleitfähigkeit pro messung
     # measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-04-06.xlsx"
     measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-07-10.xlsx"
+
+    soils_output_file = path / "02_16_Ergebnisse.xlsx"
+    soils_output_handler = pandas.ExcelWriter(soils_output_file)
+
     measurements_output_file = path / "model_fit.xlsx"
     measurements_output_handler = pandas.ExcelWriter(measurements_output_file)
-    data_measurement_sheets = pandas.read_excel(measurements_input_file, sheet_name=None)
 
     cmap = pyplot.get_cmap("Set1")
 
     particle_density = 2650             # reindichte stein? soil? grauwacke? https://www.chemie.de/lexikon/Gesteinsdichte.html
-    thermal_conductivity_water = .57    # wiki: 0.597 https://de.wikipedia.org/wiki/Eigenschaften_des_Wassers
     thermal_conductivity_quartz = 7.7   # metall?
 
+    methods = Methods.get_static_methods()
+
     scatter_data = {
-        "Markert":          {"model": [], "data": [], "is_punctual": [], "is_in_range": [], "is_tu": []},
-        "Brakelmann":       {"model": [], "data": [], "is_punctual": [], "is_in_range": [], "is_tu": []},
-        "Markle":           {"model": [], "data": [], "is_punctual": [], "is_in_range": [], "is_tu": []},
-        "Hu":               {"model": [], "data": [], "is_punctual": [], "is_in_range": [], "is_tu": []},
-        "Markert spez. u.": {"model": [], "data": [], "is_punctual": [], "is_in_range": [], "is_tu": []},
-        "Markert spez. p.": {"model": [], "data": [], "is_punctual": [], "is_in_range": [], "is_tu": []},
-        "Markert Lu":       {"model": [], "data": [], "is_punctual": [], "is_in_range": [], "is_tu": []},
+        each_method.__name__:
+            {"model": [], "data": [], "is_punctual": [], "is_in_range": [], "is_tu": []}
+        for each_method in methods
     }
 
     measurement_output = {
         "Messreihe":             [],
-        "#Messungen":            [],
-        "RMSE Markert":          [],
-        "RMSE Brakelmann":       [],
-        "RMSE Markle":           [],
-        "RMSE Hu":               [],
-        "RMSE Markert spez. u.": [],
-        "RMSE Markert spez. p.": [],
-        "RMSE Markert Lu":       [],
-        "DIR Markert":           [],
-        "DIR Brakelmann":        [],
-        "DIR Markle":            [],
-        "DIR Hu":                [],
-        "DIR Markert spez. u.":  [],
-        "DIR Markert spez. p.":  [],
-        "DIR Markert Lu":        [],
+        "#Messungen":            []
     }
+    for each_method in methods:
+        measurement_output[f"RMSE {each_method.__name__}"] = []
+        measurement_output[f"DIR {each_method.__name__}"] = []
 
+    data_measurement_sheets = pandas.read_excel(measurements_input_file, sheet_name=None)
     overview_sheet = data_measurement_sheets.get("Übersicht")
     for row_index, (n, row) in enumerate(overview_sheet.iterrows()):
         if row_index + 1 == 30:
@@ -152,7 +173,8 @@ def main() -> None:
             print(f"Sheet {row_index + 1:d} not found")
             break
 
-        short_name, percentage_sand, percentage_silt, percentage_clay, density_soil_non_si, soil_type = row.values[1:7]  # KA5 name, anteil sand, anteil schluff, anteil lehm, dichte
+        # KA5 name, anteil sand, anteil schluff, anteil lehm, dichte
+        short_name, percentage_sand, percentage_silt, percentage_clay, density_soil_non_si, soil_type = row.values[1:7]
         measurement_type = row.values[10]  # Messungstyp
         density_soil = density_soil_non_si * 1000.  # g/cm3 -> kg/m3
         porosity_ratio = 1. - density_soil / particle_density
@@ -196,230 +218,64 @@ def main() -> None:
         thermal_conductivity_other = 3. if theta_quartz < .2 else 2.
         thermal_conductivity_sand = thermal_conductivity_quartz ** theta_quartz * thermal_conductivity_other ** (1 - theta_quartz)  # thermal conductivity of stone? soil?
 
-        # Modellpassung
-        lambda_markert_ideal = markert_all(
-            theta_measurement,
-            percentage_clay,
-            percentage_sand,
-            porosity_ratio,
-            density_soil_non_si)
-
-        lambda_brakelmann_ideal = brakelmann(
-            theta_measurement,
-            percentage_clay,
-            percentage_sand,
-            percentage_silt,
-            thermal_conductivity_water,
-            porosity_ratio)
-
-        lambda_markle_ideal = markle(
-            theta_measurement,
-            thermal_conductivity_sand,
-            porosity_ratio,
-            thermal_conductivity_water,
-            particle_density,
-            density_soil)
-
-        lambda_hu_ideal = hu(
-            theta_measurement,
-            thermal_conductivity_sand,
-            thermal_conductivity_water,
-            porosity_ratio,
-            particle_density,
-            density_soil)
-
-        lambda_markert_specific_unpacked = markert_specific(
-            theta_measurement,
-            percentage_clay,
-            percentage_silt,
-            percentage_sand,
-            porosity_ratio,
-            density_soil_non_si,
-            packed=False)
-
-        lambda_markert_specific_packed = markert_specific(
-            theta_measurement,
-            percentage_clay,
-            percentage_silt,
-            percentage_sand,
-            porosity_ratio,
-            density_soil_non_si,
-            packed=True)
-
-        lambda_markert_lu = markert_lu(
-            theta_measurement,
-            percentage_clay,
-            percentage_sand,
-            porosity_ratio,
-            density_soil_non_si)
-
         no_measurements = len(lambda_measurement)
         measurement_output["Messreihe"].append(row_index + 1)
         measurement_output["#Messungen"].append(no_measurements)
 
-        markert_sse = numpy.sum((lambda_measurement - lambda_markert_ideal) ** 2)
-        brakelmann_sse = numpy.sum((lambda_measurement - lambda_brakelmann_ideal) ** 2)
-        markle_sse = numpy.sum((lambda_measurement - lambda_markle_ideal) ** 2)
-        hu_sse = numpy.sum((lambda_measurement - lambda_hu_ideal) ** 2)
-        markert_specific_unpacked_sse = numpy.sum((lambda_measurement - lambda_markert_specific_unpacked) ** 2)
-        markert_specific_packed_sse = numpy.sum((lambda_measurement - lambda_markert_specific_packed) ** 2)
-        markert_lu_sse = numpy.sum((lambda_measurement - lambda_markert_lu) ** 2)
-
-        measurement_output["RMSE Markert"].append(numpy.sqrt(markert_sse / no_measurements))
-        measurement_output["RMSE Brakelmann"].append(numpy.sqrt(brakelmann_sse / no_measurements))
-        measurement_output["RMSE Markle"].append(numpy.sqrt(markle_sse / no_measurements))
-        measurement_output["RMSE Hu"].append(numpy.sqrt(hu_sse / no_measurements))
-        measurement_output["RMSE Markert spez. u."].append(numpy.sqrt(markert_specific_unpacked_sse / no_measurements))
-        measurement_output["RMSE Markert spez. p."].append(numpy.sqrt(markert_specific_packed_sse / no_measurements))
-        measurement_output["RMSE Markert Lu"].append(numpy.sqrt(markert_lu_sse / no_measurements))
-
-        markert_avrg_dir = numpy.sum(lambda_markert_ideal - lambda_measurement) / no_measurements
-        brakelmann_avrg_dir = numpy.sum(lambda_brakelmann_ideal - lambda_measurement) / no_measurements
-        markle_avrg_dir = numpy.sum(lambda_markle_ideal - lambda_measurement) / no_measurements
-        hu_avrg_dir = numpy.sum(lambda_hu_ideal - lambda_measurement) / no_measurements
-        markert_specific_unpacked_avrg_dir = numpy.sum(lambda_markert_specific_unpacked - lambda_measurement) / no_measurements
-        markert_specific_packed_avrg_dir = numpy.sum(lambda_markert_specific_packed - lambda_measurement) / no_measurements
-        markert_lu_avrg_dir = numpy.sum(lambda_markert_lu - lambda_measurement) / no_measurements
-        measurement_output["DIR Markert"].append(markert_avrg_dir)
-        measurement_output["DIR Brakelmann"].append(brakelmann_avrg_dir)
-        measurement_output["DIR Markle"].append(markle_avrg_dir)
-        measurement_output["DIR Hu"].append(hu_avrg_dir)
-        measurement_output["DIR Markert spez. u."].append(markert_specific_unpacked_avrg_dir)
-        measurement_output["DIR Markert spez. p."].append(markert_specific_packed_avrg_dir)
-        measurement_output["DIR Markert Lu"].append(markert_lu_avrg_dir)
-
         measurement_type_sequence = ["punctual" in measurement_type.lower()] * no_measurements
         soil_type_sequence = ["t/u" in soil_type.lower()] * no_measurements
 
-        scatter_data["Markert"]["model"].extend(lambda_markert_ideal)
-        scatter_data["Markert"]["data"].extend(lambda_measurement)
-        scatter_data["Markert"]["is_punctual"].extend(measurement_type_sequence)
-        scatter_data["Markert"]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
-        scatter_data["Markert"]["is_tu"].extend(soil_type_sequence)
+        arguments = Methods.Arguments(
+            thermal_conductivity_sand=thermal_conductivity_sand,
+            percentage_clay=percentage_clay,
+            percentage_sand=percentage_sand,
+            percentage_silt=percentage_silt,
+            porosity_ratio=porosity_ratio,
+            density_soil_non_si=density_soil_non_si,
+            particle_density=particle_density,
+            density_soil=density_soil
+        )
 
-        scatter_data["Brakelmann"]["model"].extend(lambda_brakelmann_ideal)
-        scatter_data["Brakelmann"]["data"].extend(lambda_measurement)
-        scatter_data["Brakelmann"]["is_punctual"].extend(measurement_type_sequence)
-        scatter_data["Brakelmann"]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
-        scatter_data["Brakelmann"]["is_tu"].extend(soil_type_sequence)
+        # START measurements
+        for each_method in methods:
+            ideal = each_method(theta_measurement, arguments)
+            sse = numpy.sum((lambda_measurement - ideal) ** 2)
+            measurement_output[f"RMSE {each_method.__name__}"].append(numpy.sqrt(sse / no_measurements))
+            scatter_data[each_method.__name__]["model"].extend(ideal)
+            scatter_data[each_method.__name__]["data"].extend(lambda_measurement)
+            scatter_data[each_method.__name__]["is_punctual"].extend(measurement_type_sequence)
+            scatter_data[each_method.__name__]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
+            scatter_data[each_method.__name__]["is_tu"].extend(soil_type_sequence)
+            markert_avrg_dir = numpy.sum(ideal - lambda_measurement) / no_measurements
+            measurement_output[f"DIR {each_method.__name__}"].append(markert_avrg_dir)
+        # END measurements
 
-        scatter_data["Markle"]["model"].extend(lambda_markle_ideal)
-        scatter_data["Markle"]["data"].extend(lambda_measurement)
-        scatter_data["Markle"]["is_punctual"].extend(measurement_type_sequence)
-        scatter_data["Markle"]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
-        scatter_data["Markle"]["is_tu"].extend(soil_type_sequence)
+        # START ideal values
+        soil_output = {f"Feuchte {row_index + 1:d}, {short_name:s} [m³%]": theta_range}
 
-        scatter_data["Hu"]["model"].extend(lambda_hu_ideal)
-        scatter_data["Hu"]["data"].extend(lambda_measurement)
-        scatter_data["Hu"]["is_punctual"].extend(measurement_type_sequence)
-        scatter_data["Hu"]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
-        scatter_data["Hu"]["is_tu"].extend(soil_type_sequence)
-
-        scatter_data["Markert spez. u."]["model"].extend(lambda_markert_specific_unpacked)
-        scatter_data["Markert spez. u."]["data"].extend(lambda_measurement)
-        scatter_data["Markert spez. u."]["is_punctual"].extend(measurement_type_sequence)
-        scatter_data["Markert spez. u."]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
-        scatter_data["Markert spez. u."]["is_tu"].extend(soil_type_sequence)
-
-        scatter_data["Markert spez. p."]["model"].extend(lambda_markert_specific_packed)
-        scatter_data["Markert spez. p."]["data"].extend(lambda_measurement)
-        scatter_data["Markert spez. p."]["is_punctual"].extend(measurement_type_sequence)
-        scatter_data["Markert spez. p."]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
-        scatter_data["Markert spez. p."]["is_tu"].extend(soil_type_sequence)
-
-        scatter_data["Markert Lu"]["model"].extend(lambda_markert_lu)
-        scatter_data["Markert Lu"]["data"].extend(lambda_measurement)
-        scatter_data["Markert Lu"]["is_punctual"].extend(measurement_type_sequence)
-        scatter_data["Markert Lu"]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
-        scatter_data["Markert Lu"]["is_tu"].extend(soil_type_sequence)
-
-        # Modelle
-        lambda_markert = markert_all(
-            theta_range,
-            percentage_clay,
-            percentage_sand,
-            porosity_ratio,
-            density_soil_non_si)
-
-        lambda_brakelmann = brakelmann(
-            theta_range,
-            percentage_clay,
-            percentage_sand,
-            percentage_silt,
-            thermal_conductivity_water,
-            porosity_ratio)
-
-        lambda_markle = markle(
-            theta_range,
-            thermal_conductivity_sand,
-            porosity_ratio,
-            thermal_conductivity_water,
-            particle_density,
-            density_soil)
-
-        lambda_hu = hu(
-            theta_range,
-            thermal_conductivity_sand,
-            thermal_conductivity_water,
-            porosity_ratio,
-            particle_density,
-            density_soil)
-
-        lambda_markert_specific_unpacked = markert_specific(
-            theta_range,
-            percentage_clay,
-            percentage_silt,
-            percentage_sand,
-            porosity_ratio,
-            density_soil_non_si,
-            packed=False)
-
-        lambda_markert_specific_packed = markert_specific(
-            theta_range,
-            percentage_clay,
-            percentage_silt,
-            percentage_sand,
-            porosity_ratio,
-            density_soil_non_si,
-            packed=True)
-
-        lambda_markert_lu = markert_lu(
-            theta_range,
-            percentage_clay,
-            percentage_sand,
-            porosity_ratio,
-            density_soil_non_si)
-
-        # plot
-        """
         pyplot.figure()
         pyplot.title(short_name)
-        pyplot.plot(theta_range, lambda_markert, c=cmap(0), label="Markert")
-        pyplot.plot(theta_range, lambda_markle, c=cmap(1), label="Markle")
-        pyplot.plot(theta_range, lambda_brakelmann, c=cmap(2), label="Brakelmann")
-        pyplot.plot(theta_range, lambda_hu, c=cmap(3), label="Hu")
-        pyplot.plot(theta_range, lambda_markert_specific_unpacked, c=cmap(4), label="Markert spezifisch unpacked")
-        pyplot.plot(theta_range, lambda_markert_specific_packed, c=cmap(5), label="Markert spezifisch packed")
-        pyplot.plot(theta_range, lambda_markert_lu, c=cmap(6), label="Markert-Lu")
+        for i, each_method in enumerate(methods):
+            lambda_values = each_method(theta_range, arguments)
+            pyplot.plot(theta_range, lambda_values, c=cmap(i), label=each_method.__name__)
+            soil_output[f"{each_method.__name__} {row_index + 1:d}, {short_name:s} [W/(mK)]"] = lambda_values
+
         pyplot.xlabel("Theta [m³%]")
         pyplot.ylabel("Lambda [W/(mK)]")
         pyplot.legend()
-        """
-        # write to file
-        soil_output = {
-            f"Feuchte {row_index + 1:d}, {short_name:s} [m³%]":                         theta_range,
-            f"Markert {row_index + 1:d}, {short_name:s} [W/(mK)]":                      lambda_markert,
-            f"Brakelmann {row_index + 1:d}, {short_name:s} [W/(mK)]":                   lambda_brakelmann,
-            f"Markle {row_index + 1:d}, {short_name:s} [W/(mK)]":                       lambda_markle,
-            f"Hu {row_index + 1:d}, {short_name:s} [W/(mK)]":                           lambda_hu,
-            f"Markert spezifisch unpacked {row_index + 1:d}, {short_name:s} [W/(mK)]":  lambda_markert_specific_unpacked,
-            f"Markert spezifisch packed {row_index + 1:d}, {short_name:s} [W/(mK)]":    lambda_markert_specific_packed,
-            f"Markert-Lu {row_index + 1:d}, {short_name:s} [W/(mK)]":                   lambda_markert_lu,
-        }
 
         soil_df = pandas.DataFrame(soil_output)
         soil_df.to_excel(soils_output_handler, sheet_name=f"{row_index + 1:d} {short_name:s}")
+        # END ideal values
 
+    # START write model fit
+    measurements_df = pandas.DataFrame(measurement_output)
+    measurements_df.to_excel(measurements_output_handler, index=False)
+    measurements_output_handler.close()
+    soils_output_handler.close()
+    # END write model fit
+
+    # START plot measurements against models
     for method, info in scatter_data.items():
         print(f"{method:s}: scatterplotting...")
         pyplot.figure()
@@ -448,14 +304,9 @@ def main() -> None:
         pyplot.ylim(0, 3)
         pyplot.savefig(f"plots/scatter_{method:s}.pdf")
 
-    # write xls
-    measurements_df = pandas.DataFrame(measurement_output)
-    measurements_df.to_excel(measurements_output_handler, index=False)
-    measurements_output_handler.close()
-
-    soils_output_handler.close()
-
     pyplot.show()
+    # pyplot.close()
+    # END plot measurements against models
 
 
 if __name__ == "__main__":
