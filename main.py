@@ -377,15 +377,15 @@ class Methods:
         return lam_lu
 
     @staticmethod
-    def kersten(theta_volumetric: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+    def kersten_johansen_bertermann(theta_volumetric: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
         """
         This function implements the Kersten Model (1949) to compute the thermal conductivity of soil based on
         its volumetric water content and other properties. The method uses different equations depending on the
         soil's texture (sandiness).
         """
 
-        theta_gravimetric = theta_volumetric / arguments.density_soil_non_si
-        if (arguments.percentage_silt + arguments.percentage_clay) > .5:
+        theta_gravimetric = 100. * theta_volumetric / arguments.density_soil_non_si
+        if (arguments.percentage_silt + arguments.percentage_clay) > 50.:
             lam_kersten = 0.1442 * (0.7 * numpy.log10(theta_gravimetric) + 0.4) * 10 ** (0.6243 * arguments.density_soil_non_si)  # Eq. 3.18
         else:
             lam_kersten = 0.1442 * (0.9 * numpy.log10(theta_gravimetric) - 0.2) * 10 ** (0.6243 * arguments.density_soil_non_si)  # Eq. 3.19
@@ -427,26 +427,49 @@ class Methods:
         its volumetric water content and other properties.
         """
         k_values = {
-            "Gravel and coarse sand":   4.6,
-            "Medium and fine sand":     3.55,
-            "Silty and clayey soils":   1.9,
-            "Organic fibrous soils":    0.6,
+            "Gravel and coarse sand": 4.6,  # raus
+            "Medium and fine sand": 3.55,   # > 50% sand
+            "Silty and clayey soils": 1.9,  # sonst
+            "Organic fibrous soils": 0.6,   # raus
         }
 
-        soil_material = "Silty and clayey soils"
+        if arguments.percentage_sand > 50:
+            soil_material = "Medium and fine sand"
+            k_r = .7 * numpy.log10(theta / arguments.porosity_ratio) + 1.
+        else:
+            soil_material = "Silty and clayey soils"
+            k_r = numpy.log10(theta / arguments.porosity_ratio) + 1
 
         if soil_material not in k_values:
             raise ValueError(f"Invalid soil material: {soil_material}. Supported values are: {', '.join(k_values.keys())}")
 
-        k = k_values[soil_material]
-        steps = theta / arguments.porosity_ratio
-        ke_cote_konrad = k * steps * (1. + (k - 1.) * steps)
-
+        # cote publikation, formeln 4 und 5, S_r ist Anteil der vollständigen Sättigung
+        # vollständige Sättigung ist alle Poren voller Wasser
         chi = 0.75
         eta = 1.2
         lam_dry = chi * 10 ** (-eta * arguments.porosity_ratio)
+        # lam_sat = arguments.porosity_ratio
 
-        lam_cote_konrad = lam_dry * ke_cote_konrad
+        # ====
+        lam_w = 0.57
+        lam_q = 7.7
+        volume_fraction_quartz = 0.5 * arguments.percentage_sand / 100  # Convert percentage to fraction
+        lam_other = 2 if volume_fraction_quartz >= 0.2 else 3
+
+        # Thermal conductivity of soil mineral solids
+        lam_s = lam_q ** volume_fraction_quartz * lam_other ** (1 - volume_fraction_quartz)
+        # Calculate lambda_sat
+        lam_sat = lam_w ** arguments.porosity_ratio * lam_s ** (1 - arguments.porosity_ratio)
+        # ====
+        # xxx
+        k = k_values[soil_material]
+        steps = theta / arguments.porosity_ratio
+        # ke_cote_konrad = k * steps * (1. + (k - 1.) * steps)
+        # ke_cote_konrad = k_r * (lam_sat - lam_dry)
+
+        # lam_cote_konrad = lam_dry + ke_cote_konrad * (lam_sat - lam_dry)
+        # lam_cote_konrad = lam_dry * ke_cote_konrad
+        lam_cote_konrad = lam_dry + k_r * (lam_sat - lam_dry)
         return lam_cote_konrad
 
     @staticmethod
@@ -456,7 +479,8 @@ class Methods:
         volumetric water content and other properties.
         """
         # particle_density = arguments.particle_density
-        particle_density = 2_700  # from Yang et al. (2005)
+        # particle_density = 2_700  # from Yang et al. (2005)
+        particle_density = 2_650  # from Yang et al. (2005)
 
         k_t = 0.36
         steps = theta / arguments.porosity_ratio
@@ -464,7 +488,7 @@ class Methods:
         lam_sat = 0.5 ** arguments.porosity_ratio * (7.7 ** gravimetric_quartz_content * 2 ** (1 - gravimetric_quartz_content)) ** (1 - arguments.porosity_ratio)
         lam_dry = (.135 * arguments.density_soil + 64.7) / (particle_density - .947 * arguments.density_soil)  # As used before for dry soil
 
-        ke_yang = numpy.exp(k_t * (1 - 1 / steps))
+        ke_yang = numpy.exp(k_t * (1 - 1 / (steps / arguments.porosity_ratio)))
         lam_yang = lam_dry + ke_yang * (lam_sat - lam_dry)
         return lam_yang
 
@@ -618,16 +642,16 @@ def main() -> None:
         # START ideal values
         soil_output = {f"Feuchte {row_index + 1:d}, {short_name:s} [m³%]": theta_range}
 
-        # pyplot.figure()
-        # pyplot.title(short_name)
+        #pyplot.figure()
+        #pyplot.title(short_name)
         for i, each_method in enumerate(methods):
             lambda_values = each_method(theta_range, arguments)
-            # pyplot.plot(theta_range, lambda_values, c=cmap(i), label=each_method.__name__)
+            #pyplot.plot(theta_range, lambda_values, c=cmap(i), label=each_method.__name__)
             soil_output[f"{each_method.__name__} {row_index + 1:d}, {short_name:s} [W/(mK)]"] = lambda_values
 
-        # pyplot.xlabel("Theta [m³%]")
-        # pyplot.ylabel("Lambda [W/(mK)]")
-        # pyplot.legend()
+        #pyplot.xlabel("Theta [m³%]")
+        #pyplot.ylabel("Lambda [W/(mK)]")
+        #pyplot.legend()
 
         soil_df = pandas.DataFrame(soil_output)
         soil_df.to_excel(soils_output_handler, sheet_name=f"{row_index + 1:d} {short_name:s}")
