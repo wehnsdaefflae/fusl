@@ -229,7 +229,7 @@ class Methods:
         return Methods._markert_all(theta, arguments, packed=False)
 
     @staticmethod
-    def markert_lu(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+    def _markert_lu(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
         # seite 19, https://www.dropbox.com/s/6iq8z26iahk6s6d/2018-10-25_FAU_TB_Endbericht_Pos.3.1_V3.pdf?dl=0
         lambda_dry = -.56 * arguments.porosity_ratio + .51
         sigma = .67 * arguments.percentage_clay / 100. + .24
@@ -238,7 +238,7 @@ class Methods:
         return lam_markert_lu
 
     @staticmethod
-    def devries(theta_l: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+    def _devries(theta_l: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
         """
         This function `devries` computes the thermal conductivity for the DeVries model.
         Note that some elements of the DeVries model such as `epsilon_k` are placeholders
@@ -284,7 +284,7 @@ class Methods:
         return lam
 
     @staticmethod
-    def sadeghi(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
+    def _sadeghi(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
         """
         Computes the thermal conductivity of soil based on its water content using the Sadeghi et al. (2018) model.
         Based on the Percolation-Based Effective-Medium Approximation (P-EMA).
