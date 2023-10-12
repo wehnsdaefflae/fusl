@@ -734,7 +734,8 @@ def main() -> None:
 
         pyplot.xlim(0, 3)
         pyplot.ylim(0, 3)
-        pyplot.savefig(f"plots/scatter_{method:s}.pdf")
+        # pyplot.savefig(f"plots/scatter_{method:s}.pdf")
+        pyplot.savefig(f"plots/scatter_{method:s}.png")
 
     pyplot.show()
     # pyplot.close()
