@@ -558,18 +558,13 @@ def init_scatter_data(methods: list[Callable[..., any]]) -> dict[str, dict[str, 
 
 
 def main() -> None:
-    path = Path("data/")
+    input_path = Path("data/")
+    output_path = Path("output/")
 
     # measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-02-21.xlsx"
     # (absolute dichte pro messreihe), volumenanteil wasser pro messung, wärmeleitfähigkeit pro messung
     # measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-04-06.xlsx"
-    measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-09-11.xlsx"
-
-    soils_output_file = path / "02_16_Ergebnisse.xlsx"
-    soils_output_handler = pandas.ExcelWriter(soils_output_file)
-
-    measurements_output_file = path / "model_fit.xlsx"
-    measurements_output_handler = pandas.ExcelWriter(measurements_output_file)
+    measurements_input_file = input_path / "Messdatenbank_FAU_Stand_2023-09-11.xlsx"
 
     cmap = pyplot.get_cmap("Set1")
 
@@ -577,10 +572,6 @@ def main() -> None:
     thermal_conductivity_quartz = 7.7  # metall?
 
     methods = Methods.get_static_methods()
-    # methods = [Methods.kersten]
-
-    scatter_data = init_scatter_data(methods)
-    measurement_output = init_outputs(methods)
 
     data_measurement_sheets = pandas.read_excel(measurements_input_file, sheet_name=None)
     overview_sheet = data_measurement_sheets.get("Übersicht")
@@ -598,6 +589,26 @@ def main() -> None:
     )
 
     for each_combination in combinations:
+        sand = each_combination["sand"]
+        water = each_combination["water"]
+        data = each_combination["data"]
+
+        combination_str = f"data-{data}_sand-{sand}_water-{water}"
+
+        subset_path = output_path / combination_str
+        subset_path.mkdir(parents=True, exist_ok=True)
+
+        plot_subset_path = subset_path / "plots"
+        plot_subset_path.mkdir(parents=True, exist_ok=True)
+
+        soils_output_file = subset_path / "02_16_Ergebnisse.xlsx"
+        measurements_output_file = subset_path / "model_fit.xlsx"
+
+        scatter_data = init_scatter_data(methods)
+        measurement_output = init_outputs(methods)
+
+        dataframes = list()
+
         for row_index, (n, row) in enumerate(overview_sheet.iterrows()):
             row_index = int(row_index)
             if row_index + 1 == 30:
@@ -614,6 +625,16 @@ def main() -> None:
 
             # KA5 name, anteil sand, anteil schluff, anteil lehm, dichte
             short_name, percentage_sand, percentage_silt, percentage_clay, density_soil_non_si, soil_type = row.values[1:7]
+
+            if each_combination["data"] == "low" and row.values[9] != "low":
+                continue
+            if each_combination["data"] == "high" and row.values[9] != "high":
+                continue
+            if each_combination["sand"] == "low" and percentage_sand >= 50:
+                continue
+            if each_combination["sand"] == "high" and percentage_sand < 50:
+                continue
+
             short_name = short_name if isinstance(short_name, str) else "nan"
             measurement_type = row.values[10]  # Messungstyp
             density_soil = density_soil_non_si * 1000.  # g/cm3 -> kg/m3
@@ -635,13 +656,30 @@ def main() -> None:
             # is_in_range = (theta_array >= bound_lo) & (bound_hi >= theta_array)
 
             lambda_array = each_sheet["λ [W/(m∙K)]"].to_numpy()
-            filter_array = (
-                    numpy.isfinite(lambda_array)
-                    & (0 < theta_array)
-                # & numpy.array([not is_punctual] * len(lambda_array))
-                # & numpy.array([not is_tu] * len(lambda_array))
-                # & is_in_range
-            )
+            if each_combination["water"] == "low":
+                filter_array = (
+                        numpy.isfinite(lambda_array)
+                        & (0 < theta_array)
+                        & ((theta_array / porosity_ratio) < .5)
+                    # & numpy.array([not is_punctual] * len(lambda_array))
+                    # & numpy.array([not is_tu] * len(lambda_array))
+                    # & is_in_range
+                )
+            elif each_combination["water"] == "high":
+                filter_array = (
+                        numpy.isfinite(lambda_array)
+                        & (0 < theta_array)
+                        & ((theta_array / porosity_ratio) >= .5)
+                    # & numpy.array([not is_punctual] * len(lambda_array))
+                    # & numpy.array([not is_tu] * len(lambda_array))
+                    # & is_in_range
+                )
+            else:
+                filter_array = (
+                        numpy.isfinite(lambda_array)
+                        & (0 < theta_array)
+                )
+
             theta_measurement_volumetric = theta_array[filter_array]
             # theta_measurement = each_sheet["θ [cm3/cm3]"]
             lambda_measurement = lambda_array[filter_array]
@@ -707,15 +745,22 @@ def main() -> None:
             #pyplot.ylabel("Lambda [W/(mK)]")
             #pyplot.legend()
 
+            # adds sheet
             soil_df = pandas.DataFrame(soil_output)
-            soil_df.to_excel(soils_output_handler, sheet_name=f"{row_index + 1:d} {short_name:s}")
+            dataframes.append((soil_df, row_index, short_name))
             # END ideal values
 
         # START write model fit
+        if 0 < len(dataframes):
+            soils_output_handler = pandas.ExcelWriter(soils_output_file)
+            for soil_df, row_index, short_name in dataframes:
+                soil_df.to_excel(soils_output_handler, sheet_name=f"{row_index + 1:d} {short_name:s}")
+            soils_output_handler.close()
+
+        measurements_output_handler = pandas.ExcelWriter(measurements_output_file)
         measurements_df = pandas.DataFrame(measurement_output)
         measurements_df.to_excel(measurements_output_handler, index=False)
         measurements_output_handler.close()
-        soils_output_handler.close()
         # END write model fit
 
         # START plot measurements against models
@@ -740,6 +785,9 @@ def main() -> None:
                     sum_model += model
                     measurements += 1
 
+            if measurements < 1:
+                continue
+
             pyplot.title(f"{method:s} (rmse: {numpy.sqrt(sum_delta_squared / measurements):.3f}, bias: {sum_delta / sum_model:.3f})")
             pyplot.plot([0, 3], [0, 3], c="black", linestyle="--", alpha=.3)
 
@@ -753,11 +801,11 @@ def main() -> None:
 
             pyplot.xlim(0, 3)
             pyplot.ylim(0, 3)
-            pyplot.savefig(f"plots/scatter_{method:s}.pdf")
+            pyplot.savefig((plot_subset_path / f"scatter_{method:s}.pdf").as_posix())
             # pyplot.savefig(f"plots/scatter_{method:s}.png")
 
-        pyplot.show()
-        # pyplot.close()
+            # pyplot.show()
+            pyplot.close()
         # END plot measurements against models
 
 
