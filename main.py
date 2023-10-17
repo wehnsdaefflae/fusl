@@ -561,6 +561,8 @@ def main() -> None:
     input_path = Path("data/")
     output_path = Path("output/")
 
+    result_overview = output_path / "result_overview.csv"
+
     # measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-02-21.xlsx"
     # (absolute dichte pro messreihe), volumenanteil wasser pro messung, wärmeleitfähigkeit pro messung
     # measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-04-06.xlsx"
@@ -682,9 +684,9 @@ def main() -> None:
 
             theta_measurement_volumetric = theta_array[filter_array]
             # theta_measurement = each_sheet["θ [cm3/cm3]"]
-            lambda_measurement = lambda_array[filter_array]
+            data_measured = lambda_array[filter_array]
 
-            if len(theta_measurement_volumetric) < 1 or len(lambda_measurement) < 1:
+            if len(theta_measurement_volumetric) < 1 or len(data_measured) < 1:
                 print(f"Skipping {row_index + 1:d} due to missing data")
                 continue
 
@@ -699,7 +701,7 @@ def main() -> None:
             thermal_conductivity_other = 3. if theta_quartz < .2 else 2.
             thermal_conductivity_sand = thermal_conductivity_quartz ** theta_quartz * thermal_conductivity_other ** (1 - theta_quartz)  # thermal conductivity of stone? soil?
 
-            no_measurements = len(lambda_measurement)
+            no_measurements = len(data_measured)
             measurement_output["Messreihe"].append(row_index + 1)
             measurement_output["#Messungen"].append(no_measurements)
 
@@ -719,16 +721,16 @@ def main() -> None:
 
             # START measurements
             for each_method in methods:
-                ideal = each_method(theta_measurement_volumetric, arguments)
-                sse = numpy.sum((lambda_measurement - ideal) ** 2)
+                model_results = each_method(theta_measurement_volumetric, arguments)
+                sse = numpy.sum((data_measured - model_results) ** 2)
                 measurement_output[f"RMSE {each_method.__name__}"].append(numpy.sqrt(sse / no_measurements))
-                scatter_data[each_method.__name__]["model"].extend(ideal)
-                scatter_data[each_method.__name__]["data"].extend(lambda_measurement)
+                scatter_data[each_method.__name__]["model"].extend(model_results)
+                scatter_data[each_method.__name__]["data"].extend(data_measured)
                 scatter_data[each_method.__name__]["is_punctual"].extend(measurement_type_sequence)
                 # scatter_data[each_method.__name__]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
                 scatter_data[each_method.__name__]["is_tu"].extend(soil_type_sequence)
-                average_dir = numpy.sum(ideal - lambda_measurement) / no_measurements
-                measurement_output[f"BIAS {each_method.__name__}"].append(average_dir)
+                bias = numpy.sum(model_results - data_measured) / numpy.sum(model_results)
+                measurement_output[f"BIAS {each_method.__name__}"].append(bias)
             # END measurements
 
             # START ideal values
@@ -788,7 +790,13 @@ def main() -> None:
             if measurements < 1:
                 continue
 
-            pyplot.title(f"{method:s} (rmse: {numpy.sqrt(sum_delta_squared / measurements):.3f}, bias: {sum_delta / sum_model:.3f})")
+            rmse = numpy.sqrt(sum_delta_squared / measurements)
+            bias = sum_delta / sum_model
+
+            with result_overview.open(mode="a") as file:
+                file.write(f"{combination_str:s};{method:s};{rmse:.3f};{bias:.3f}\n")
+
+            pyplot.title(f"{method:s} (rmse: {rmse:.3f}, bias: {bias:.3f})")
             pyplot.plot([0, 3], [0, 3], c="black", linestyle="--", alpha=.3)
 
             non_punctual_x = [each_x for each_x, each_is_punctual in zip(info["data"], info["is_punctual"]) if not each_is_punctual]
