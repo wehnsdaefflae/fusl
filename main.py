@@ -609,39 +609,6 @@ def main() -> None:
     # measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-04-06.xlsx"
     measurements_input_file = input_path / "Messdatenbank_FAU_Stand_2023-11-08.xlsx"
 
-    # todo:
-    #  data density: nur noch lo und hi, ohne total
-    #  reihenfolge:
-    #   kersten
-    #   johansen
-    #   brakelmann
-    #   ewan_and_thomas
-    #   hu
-    #   cote
-    #   yang
-    #   lu
-    #   markert
-    #     unspecific
-    #     unpacked und packed
-    #     unpacked
-    #     packed
-    #  datenbank kennzahlen
-    #    für
-    #      lambda (wärmeleitfähigkeit)
-    #      theta (wassergehalt, g/cm^3)
-    #      rho (bulk density)
-    #      sättigung
-    #      clay
-    #      silt
-    #      sand
-    #    kennzahlen:
-    #      minimum
-    #      1. quantil
-    #      median
-    #      mean
-    #      3. quantil
-    #      maximum
-
     cmap = pyplot.get_cmap("Set1")
 
     particle_density = 2650  # reindichte stein? soil? grauwacke? https://www.chemie.de/lexikon/Gesteinsdichte.html
@@ -884,7 +851,7 @@ def main() -> None:
             pyplot.xlim(0, 3)
             pyplot.ylim(0, 3)
             pyplot.savefig((plot_subset_path / f"scatter_{method:s}.pdf").as_posix())
-            # pyplot.savefig(f"plots/scatter_{method:s}.png")
+            pyplot.savefig(f"plots/scatter_{method:s}.png")
 
             # pyplot.show()
             pyplot.close()
@@ -892,4 +859,37 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # todo:
+    #  data density: nur noch lo und hi, ohne total
+    #  reihenfolge:
+    #   kersten
+    #   johansen
+    #   brakelmann
+    #   ewan_and_thomas
+    #   hu
+    #   cote
+    #   yang
+    #   lu
+    #   markert
+    #     unspecific
+    #     unpacked und packed
+    #     unpacked
+    #     packed
+    #  datenbank kennzahlen
+    #    für
+    #      lambda (wärmeleitfähigkeit)
+    #      theta (wassergehalt, g/cm^3)
+    #      rho (bulk density)
+    #      sättigung
+    #      clay
+    #      silt
+    #      sand
+    #    kennzahlen:
+    #      minimum
+    #      1. quantil
+    #      median
+    #      mean
+    #      3. quantil
+    #      maximum
+
     main()
