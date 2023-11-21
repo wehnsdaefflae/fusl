@@ -1,37 +1,27 @@
-def csv_to_html_table(csv_data: str) -> str:
-    # Parse the CSV data
-    lines = csv_data.strip().split("\n")
-    data = {}
-    for line in lines:
-        parts = line.split(",")
-        key = parts[0].split("_")
-        sand = 'S = 51-100 %' if 'high' in key[1] else 'S = 0-50 %'
-        water = key[2].replace('low_water', 'W = 0-50 %').replace('high_water', 'W = 51-100%').replace('all_water', 'W = 0-100%')
-        data_key = (sand, water)
-        data[data_key] = (parts[2], parts[3])
+def generate_html_table(cell_values: list[list[str]]) -> str:
+    """
+    Generates an HTML table with four rows and seven columns.
 
-    # HTML table setup
+    Parameters:
+    cell_values (list of lists): A 2D list containing the cell values for the table.
+
+    Returns:
+    str: HTML code for the table.
+    """
+    if len(cell_values) != 4 or any(len(row) != 7 for row in cell_values):
+        return "Invalid input: cell_values must be a 4x7 matrix."
+
     html = "<table border='1'>\n"
-    headers = ["Sand:", "S = 0-50 %", "S = 51-100 %", "S = 0-100 %"]
-    rows = ["W = 0-50 %, lo data", "W = 51-100%, lo data", "W = 0-100%, lo data",
-            "W = 0-50 %, hi data", "W = 51-100%, hi data", "W = 0-100%, hi data"]
 
-    # Create the header row
-    html += "  <tr>\n"
-    for header in headers:
-        html += f"    <th>{header}</th>\n"
-    html += "  </tr>\n"
-
-    # Create the data rows
-    for row_label in rows:
-        html += "  <tr>\n"
-        html += f"    <td>{row_label}</td>\n"
-        for sand_col in headers[1:]:
-            cell_data = data.get((sand_col, row_label), ("", ""))
-            html += f"    <td>({cell_data[0]}, {cell_data[1]})</td>\n"
-        html += "  </tr>\n"
+    # Adding rows to the table
+    for row in cell_values:
+        html += "<tr>\n"
+        for cell in row:
+            html += f"<td>{cell}</td>\n"
+        html += "</tr>\n"
 
     html += "</table>"
+
     return html
 
 
@@ -56,7 +46,18 @@ data-high_sand-all_water-high,kersten_johansen_bertermann,0.326,-0.152
 data-high_sand-all_water-all,kersten_johansen_bertermann,0.639,-0.395
 """
 
-    html_table = csv_to_html_table(csv_data)
+    # Prepare the cell values as per the user's request
+    cell_values = [
+        ["1", "1", "a", "b", "c", "d", "e", "f"],
+        ["2", "2", "", "", "", "", "", ""],
+        ["3", "3", "", "", "", "", "", ""],
+        ["4", "4", "", "", "", "", "", ""]
+    ]
+
+    # Correcting the cell values to match the required 4x7 format
+    corrected_cell_values = [row[1:] for row in cell_values]  # Remove one element from each row
+
+    html_table = generate_html_table(corrected_cell_values)
     print(html_table)
 
 
