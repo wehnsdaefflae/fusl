@@ -618,7 +618,7 @@ def main() -> None:
 
     data_measurement_sheets = pandas.read_excel(measurements_input_file, sheet_name=None)
     overview_sheet = data_measurement_sheets.get("Übersicht")
-    data_density = "low", "high", "all"
+    data_density = "low", "high"  #, "all"
     sand_content = "low", "high", "all"
     water_satura = "low", "high", "all"
 
@@ -632,9 +632,14 @@ def main() -> None:
     )
 
     for each_combination in combinations:
+        print(each_combination)
+
         sand = each_combination["sand"]
         water = each_combination["water"]
         data = each_combination["data"]
+
+        #if data == "high":
+        #    print()
 
         combination_str = f"data-{data}_sand-{sand}_water-{water}"
 
@@ -652,31 +657,39 @@ def main() -> None:
 
         dataframes = list()
 
+        next_sheet = 0
+
         for row_index, (n, row) in enumerate(overview_sheet.iterrows()):
             row_index = int(row_index)
-            if row_index + 1 == 30:
-                pass
 
             # get cells starting from the 7th column and the 2nd row to the last row
             # each_range_str = row[7]
             # each_range = tuple(float(x) / 100. for x in each_range_str.split(","))
 
-            each_sheet = data_measurement_sheets.get(f"{row_index + 1:d}")
-            if each_sheet is None:
-                print(f"Sheet {row_index + 1:d} not found")
-                break
+            while (each_sheet := data_measurement_sheets.get(f"{next_sheet:d}")) is None:
+                next_sheet += 1
+                if next_sheet >= 100:
+                    print(f"Sheet {n + 1:d} not found")
+                    break
 
             # KA5 name, anteil sand, anteil schluff, anteil lehm, dichte
             short_name, percentage_sand, percentage_silt, percentage_clay, density_soil_non_si, soil_type = row.values[1:7]
 
-            if each_combination["data"] == "low" and row.values[9] != "low":
+            each_density = row.values[9]
+            #if data != "low":
+            #    print()
+
+            if data == "low" and each_density != "low":
                 continue
-            if each_combination["data"] == "high" and row.values[9] != "high":
+            if data == "high" and each_density != "high":
                 continue
-            if each_combination["sand"] == "low" and percentage_sand >= 50:
+            if sand == "low" and percentage_sand >= 50:
                 continue
-            if each_combination["sand"] == "high" and percentage_sand < 50:
+            if sand == "high" and percentage_sand < 50:
                 continue
+
+            if row.values[9] == "high":
+                print()
 
             short_name = short_name if isinstance(short_name, str) else "nan"
             measurement_type = row.values[10]  # Messungstyp
@@ -699,7 +712,7 @@ def main() -> None:
             # is_in_range = (theta_array >= bound_lo) & (bound_hi >= theta_array)
 
             lambda_array = each_sheet["λ [W/(m∙K)]"].to_numpy()
-            if each_combination["water"] == "low":
+            if water == "low":
                 filter_array = (
                         numpy.isfinite(lambda_array)
                         & (0 < theta_array)
@@ -708,7 +721,7 @@ def main() -> None:
                     # & numpy.array([not is_tu] * len(lambda_array))
                     # & is_in_range
                 )
-            elif each_combination["water"] == "high":
+            elif water == "high":
                 filter_array = (
                         numpy.isfinite(lambda_array)
                         & (0 < theta_array)
@@ -818,8 +831,8 @@ def main() -> None:
             sum_delta = 0.
             sum_delta_squared = 0.
 
-            for model, data in zip(info["model"], info["data"]):
-                delta = model - data
+            for model, each_data in zip(info["model"], info["data"]):
+                delta = model - each_data
                 if not numpy.isnan(delta):
                     direction += delta
 
