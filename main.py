@@ -599,14 +599,16 @@ def init_scatter_data(methods: list[Callable[..., any]]) -> dict[str, dict[str, 
 
 
 def main() -> None:
+    # initialize paths
     input_path = Path("data/")
+    input_path.mkdir(parents=True, exist_ok=True)
     output_path = Path("output/")
+    output_path.mkdir(parents=True, exist_ok=True)
 
+    # set output file
     result_overview = output_path / "result_overview.csv"
 
-    # measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-02-21.xlsx"
-    # (absolute dichte pro messreihe), volumenanteil wasser pro messung, wärmeleitfähigkeit pro messung
-    # measurements_input_file = path / "Messdatenbank_FAU_Stand_2023-04-06.xlsx"
+    # set input file
     measurements_input_file = input_path / "Messdatenbank_FAU_Stand_2023-11-08.xlsx"
 
     cmap = pyplot.get_cmap("Set1")
@@ -632,24 +634,21 @@ def main() -> None:
     )
 
     for each_combination in combinations:
-        print(each_combination)
+        # name subset
+        sand_subset = each_combination["sand"]
+        data_subset = each_combination["data"]
+        water_subset = each_combination["water"]
+        combination_str = f"data-{data_subset}_sand-{sand_subset}_water-{water_subset}"
+        print(combination_str)
 
-        sand = each_combination["sand"]
-        water = each_combination["water"]
-        data = each_combination["data"]
-
-        #if data == "high":
-        #    print()
-
-        combination_str = f"data-{data}_sand-{sand}_water-{water}"
-
+        # initialize output paths
         subset_path = output_path / combination_str
         subset_path.mkdir(parents=True, exist_ok=True)
-
         plot_subset_path = subset_path / "plots"
         plot_subset_path.mkdir(parents=True, exist_ok=True)
 
-        soils_output_file = subset_path / "02_16_Ergebnisse.xlsx"
+        # set output files
+        soils_output_file = subset_path / "ergebnisse.xlsx"
         measurements_output_file = subset_path / "model_fit.xlsx"
 
         scatter_data = init_scatter_data(methods)
@@ -657,62 +656,60 @@ def main() -> None:
 
         dataframes = list()
 
-        next_sheet = 0
-
-        for row_index, (n, row) in enumerate(overview_sheet.iterrows()):
-            row_index = int(row_index)
-
-            # get cells starting from the 7th column and the 2nd row to the last row
-            # each_range_str = row[7]
-            # each_range = tuple(float(x) / 100. for x in each_range_str.split(","))
-
-            while (each_sheet := data_measurement_sheets.get(f"{next_sheet:d}")) is None:
-                next_sheet += 1
-                if next_sheet >= 100:
-                    print(f"Sheet {n + 1:d} not found")
-                    break
-
-            # KA5 name, anteil sand, anteil schluff, anteil lehm, dichte
-            short_name, percentage_sand, percentage_silt, percentage_clay, density_soil_non_si, soil_type = row.values[1:7]
-
+        for n, row in overview_sheet.iterrows():
+            # read info from row
+            sheet_index = row.values[0]
+            short_name = row.values[1]
+            percentage_sand = row.values[2]
+            percentage_silt = row.values[3]
+            percentage_clay = row.values[4]
+            density_soil_non_si = row.values[5]
+            soil_type = row.values[6]
             each_density = row.values[9]
-            #if data != "low":
-            #    print()
+            measurement_type = row.values[10]
 
-            if data == "low" and each_density != "low":
+            # skip if wrong subset
+            if data_subset == "low" and each_density != "low":
                 continue
-            if data == "high" and each_density != "high":
+            if data_subset == "high" and each_density != "high":
                 continue
-            if sand == "low" and percentage_sand >= 50:
+            if sand_subset == "low" and percentage_sand >= 50:
                 continue
-            if sand == "high" and percentage_sand < 50:
+            if sand_subset == "high" and percentage_sand < 50:
                 continue
 
-            if row.values[9] == "high":
-                print()
-
-            short_name = short_name if isinstance(short_name, str) else "nan"
-            measurement_type = row.values[10]  # Messungstyp
-            density_soil = density_soil_non_si * 1000.  # g/cm3 -> kg/m3
-            porosity_ratio = 1. - density_soil / particle_density
+            # adapt info
             percentage_sand = 0. if isinstance(percentage_sand, str) else percentage_sand
             percentage_silt = 0. if isinstance(percentage_silt, str) else percentage_silt
             percentage_clay = 0. if isinstance(percentage_clay, str) else percentage_clay
-            print(f"{row_index + 1:d} \t fSand={percentage_sand:.0f}, fSilt={percentage_silt:.0f}, fClay={percentage_clay:.0f}")
 
-            # volumetrischer Sättigungswassergehalt [m3/m3]
-            print(porosity_ratio)
+            short_name = short_name if isinstance(short_name, str) else "nan"
+            density_soil = density_soil_non_si * 1_000.  # g/cm3 -> kg/m3
+            porosity_ratio = 1. - density_soil / particle_density
+
+            steps = numpy.linspace(1, 0, num=50, endpoint=False)[::-1]    # Sättigung
+            theta_range = steps * porosity_ratio                                    # Wassergehalt
+
+            theta_quartz = .5 * percentage_sand / 100.
+            thermal_conductivity_other = 3. if theta_quartz < .2 else 2.
+            thermal_conductivity_sand = thermal_conductivity_quartz ** theta_quartz * thermal_conductivity_other ** (1 - theta_quartz)  # thermal conductivity of stone? soil?
 
             # bound_lo = min(each_range)
             # bound_hi = max(each_range)
+
+            # read from sheet
+            print(f"Messung {sheet_index:d} \t fSand={percentage_sand:.0f}, fSilt={percentage_silt:.0f}, fClay={percentage_clay:.0f}")
+
+            each_sheet = data_measurement_sheets.get(f"{sheet_index}")
 
             theta_array = each_sheet["θ [cm3/cm3]"].to_numpy()
             is_punctual = "punctual" in measurement_type.lower()
             is_tu = "t/u" in soil_type.lower()
             # is_in_range = (theta_array >= bound_lo) & (bound_hi >= theta_array)
 
+            # filter according to water content
             lambda_array = each_sheet["λ [W/(m∙K)]"].to_numpy()
-            if water == "low":
+            if water_subset == "low":
                 filter_array = (
                         numpy.isfinite(lambda_array)
                         & (0 < theta_array)
@@ -721,7 +718,7 @@ def main() -> None:
                     # & numpy.array([not is_tu] * len(lambda_array))
                     # & is_in_range
                 )
-            elif water == "high":
+            elif water_subset == "high":
                 filter_array = (
                         numpy.isfinite(lambda_array)
                         & (0 < theta_array)
@@ -741,22 +738,11 @@ def main() -> None:
             data_measured = lambda_array[filter_array]
 
             if len(theta_measurement_volumetric) < 1 or len(data_measured) < 1:
-                print(f"Skipping {row_index + 1:d} due to missing data")
+                print(f"Skipping \"Messung {sheet_index:d}\" due to missing data.")
                 continue
 
-            # Sättigung
-            steps = numpy.linspace(1, 0, num=50, endpoint=False)[::-1]
-
-            # Wassergehalt
-            theta_range = steps * porosity_ratio
-            # theta_range = numpy.linspace(bound_lo, bound_hi, num=50)
-
-            theta_quartz = .5 * percentage_sand / 100.
-            thermal_conductivity_other = 3. if theta_quartz < .2 else 2.
-            thermal_conductivity_sand = thermal_conductivity_quartz ** theta_quartz * thermal_conductivity_other ** (1 - theta_quartz)  # thermal conductivity of stone? soil?
-
             no_measurements = len(data_measured)
-            measurement_output["Messreihe"].append(row_index + 1)
+            measurement_output["Messreihe"].append(sheet_index)
             measurement_output["#Messungen"].append(no_measurements)
 
             measurement_type_sequence = ["punctual" in measurement_type.lower()] * no_measurements
@@ -788,14 +774,14 @@ def main() -> None:
             # END measurements
 
             # START ideal values
-            soil_output = {f"Feuchte {row_index + 1:d}, {short_name:s} [m³%]": theta_range}
+            soil_output = {f"Feuchte {sheet_index:d}, {short_name:s} [m³%]": theta_range}
 
             #pyplot.figure()
             #pyplot.title(short_name)
             for i, each_method in enumerate(methods):
                 lambda_values = each_method(theta_range, arguments)
                 #pyplot.plot(theta_range, lambda_values, c=cmap(i), label=each_method.__name__)
-                soil_output[f"{each_method.__name__} {row_index + 1:d}, {short_name:s} [W/(mK)]"] = lambda_values
+                soil_output[f"{each_method.__name__} {sheet_index:d}, {short_name:s} [W/(mK)]"] = lambda_values
 
             #pyplot.xlabel("Theta [m³%]")
             #pyplot.ylabel("Lambda [W/(mK)]")
@@ -803,14 +789,14 @@ def main() -> None:
 
             # adds sheet
             soil_df = pandas.DataFrame(soil_output)
-            dataframes.append((soil_df, row_index, short_name))
+            dataframes.append((soil_df, sheet_index, short_name))
             # END ideal values
 
         # START write model fit
         if 0 < len(dataframes):
             soils_output_handler = pandas.ExcelWriter(soils_output_file)
-            for soil_df, row_index, short_name in dataframes:
-                soil_df.to_excel(soils_output_handler, sheet_name=f"{row_index + 1:d} {short_name:s}")
+            for soil_df, sheet_index, short_name in dataframes:
+                soil_df.to_excel(soils_output_handler, sheet_name=f"{sheet_index:d} {short_name:s}")
             soils_output_handler.close()
 
         measurements_output_handler = pandas.ExcelWriter(measurements_output_file)
@@ -831,14 +817,14 @@ def main() -> None:
             sum_delta = 0.
             sum_delta_squared = 0.
 
-            for model, each_data in zip(info["model"], info["data"]):
-                delta = model - each_data
+            for each_model_value, each_measurement_value in zip(info["model"], info["data"]):
+                delta = each_model_value - each_measurement_value
                 if not numpy.isnan(delta):
                     direction += delta
 
                     sum_delta_squared += delta ** 2
                     sum_delta += delta
-                    sum_model += model
+                    sum_model += each_model_value
                     measurements += 1
 
             if measurements < 1:
@@ -847,24 +833,38 @@ def main() -> None:
             rmse = numpy.sqrt(sum_delta_squared / measurements)
             bias = sum_delta / sum_model
 
-            with result_overview.open(mode="a") as file:
-                file.write(f"{combination_str:s};{method:s};{rmse:.3f};{bias:.3f}\n")
+            if "kersten" in method and combination_str.count("low") == 3:
+                print("break")
+
+            with result_overview.open(mode="a") as result_file:
+                result_file.write(f"{combination_str:s};{method:s};{rmse:.3f};{bias:.3f}\n")
 
             pyplot.title(f"{method:s} (rmse: {rmse:.3f}, bias: {bias:.3f})")
             pyplot.plot([0, 3], [0, 3], c="black", linestyle="--", alpha=.3)
 
-            non_punctual_x = [each_x for each_x, each_is_punctual in zip(info["data"], info["is_punctual"]) if not each_is_punctual]
-            non_punctual_y = [each_y for each_y, each_is_punctual in zip(info["model"], info["is_punctual"]) if not each_is_punctual]
+            non_punctual_x = [
+                each_x for each_x, each_is_punctual in zip(info["data"], info["is_punctual"])
+                if not each_is_punctual
+            ]
+            non_punctual_y = [
+                each_y for each_y, each_is_punctual in zip(info["model"], info["is_punctual"])
+                if not each_is_punctual
+            ]
             pyplot.scatter(non_punctual_x, non_punctual_y, c="blue", alpha=.1, s=.5)
 
-            punctual_x = [each_x for each_x, each_is_punctual in zip(info["data"], info["is_punctual"]) if each_is_punctual]
-            punctual_y = [each_y for each_y, each_is_punctual in zip(info["model"], info["is_punctual"]) if each_is_punctual]
+            punctual_x = [
+                each_x for each_x, each_is_punctual in zip(info["data"], info["is_punctual"])
+                if each_is_punctual
+            ]
+            punctual_y = [
+                each_y for each_y, each_is_punctual in zip(info["model"], info["is_punctual"])
+                if each_is_punctual
+            ]
             pyplot.scatter(punctual_x, punctual_y, c="black", alpha=.8, s=8, linewidths=1, marker="x")
 
             pyplot.xlim(0, 3)
             pyplot.ylim(0, 3)
             pyplot.savefig((plot_subset_path / f"scatter_{method:s}.pdf").as_posix())
-            pyplot.savefig(f"plots/scatter_{method:s}.png")
 
             # pyplot.show()
             pyplot.close()
