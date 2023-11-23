@@ -147,29 +147,23 @@ class Methods:
         $$
         To estimate the boundaries, Eqs. 3.20 and 3.21 are used with slightly changed constants which are $\lambda_s=3.35 \mathrm{~W} \cdot \mathrm{m}^{-1}{ }^{\circ} \mathrm{K}^{-1}, \lambda_w=0.6 \mathrm{~W} \cdot \mathrm{m}^{-1}{ }^{\circ} \mathrm{K}^{-1}$ ), and $\lambda_{\text {air }}=0.0246$ $\mathrm{W} \cdot \mathrm{m}^{-1}{ }^{\circ} \mathrm{K} \cdot{ }^{-1}$
         """
-        lam_w = thermal_conductivity_water = .6  # wiki: 0.597 https://de.wikipedia.org/wiki/Eigenschaften_des_Wassers
+        lam_w = .6  # wiki: 0.597 https://de.wikipedia.org/wiki/Eigenschaften_des_Wassers
         steps = theta / arguments.porosity_ratio
 
-        particle_density_kg_m_cubed = 2700
+        particle_density_kg_m_cubed = 2_700
 
         ke_hu = .9878 + .1811 * numpy.log(steps)
-        # lambda_s = 3.35
-        # lambda_w = 0.6
-        # lambda_air = 0.0246
-        lam_dry = (0.137 * arguments.density_soil + 64.7) / (particle_density_kg_m_cubed - 0.947 * arguments.density_soil)
+        lam_dry = (
+                (0.137 * arguments.density_soil + 64.7) /
+                (particle_density_kg_m_cubed - 0.947 * arguments.density_soil)
+        )
 
-        lam_q = 7.7
-        volume_fraction_quartz = 0.5 * arguments.percentage_sand / 100  # Convert
-        lam_other = 2 if volume_fraction_quartz >= 0.2 else 3
-
-        lam_s = lam_q ** volume_fraction_quartz * lam_other ** (1 - volume_fraction_quartz)
+        lam_s = 3.35
 
         # Calculate lambda_sat
         lam_sat = lam_w ** arguments.porosity_ratio * lam_s ** (1 - arguments.porosity_ratio)
 
         ke_hu = numpy.where(steps > .05, ke_hu, 0.)
-        # ke_hu[ke_hu == numpy.inf] = lam_dry
-        # ke_hu[ke_hu == -numpy.inf] = lam_dry
 
         lam_hu = lam_dry + ke_hu * (lam_sat - lam_dry)
         return lam_hu
@@ -233,11 +227,14 @@ class Methods:
         $$
         Saturation degree, $S=\theta / \Phi$.
         """
-        lam_w = thermal_conductivity_water = .588  # .57  # wiki: 0.597 https://de.wikipedia.org/wiki/Eigenschaften_des_Wassers
+        lam_w  = .588  # .57  # wiki: 0.597 https://de.wikipedia.org/wiki/Eigenschaften_des_Wassers
         lam_b = .0812 * arguments.percentage_sand + .054 * arguments.percentage_silt + .02 * arguments.percentage_clay
-        # rho_p = 0.0263 * f_sand + 0.0265 * f_silt + 0.028 * f_clay
         steps = theta / arguments.porosity_ratio
-        lam_brakelmann = lam_w ** arguments.porosity_ratio * lam_b ** (1. - arguments.porosity_ratio) * numpy.exp(-3.08 * arguments.porosity_ratio * (1. - steps) ** 2)
+        lam_brakelmann = (
+                lam_w ** arguments.porosity_ratio *
+                lam_b ** (1. - arguments.porosity_ratio) *
+                numpy.exp(-3.08 * arguments.porosity_ratio * (1. - steps) ** 2)
+        )
         return lam_brakelmann
 
     @staticmethod
@@ -292,7 +289,12 @@ class Methods:
         # seite 19, https://www.dropbox.com/s/6iq8z26iahk6s6d/2018-10-25_FAU_TB_Endbericht_Pos.3.1_V3.pdf?dl=0
         lambda_dry = -.56 * arguments.porosity_ratio + .51
         sigma = .67 * arguments.percentage_clay / 100. + .24
-        beta = 1.97 * arguments.percentage_sand / 100. + arguments.density_soil_non_si * 1.87 - 1.36 * arguments.percentage_sand / 100. - .95
+        beta = (
+                1.97 * arguments.percentage_sand / 100. +
+                arguments.density_soil_non_si * 1.87 -
+                1.36 * arguments.percentage_sand / 100. -
+                .95
+        )
         lam_markert_lu = lambda_dry + numpy.exp(beta - theta ** (-sigma))
         return lam_markert_lu
 
@@ -326,12 +328,25 @@ class Methods:
                 k.append(part1 + part2)
 
         # Calculate lam_dry
-        top = arguments.porosity_ratio * lam_vapor_air + sum(k[i] * theta_l * (lam_vapor_air if i == 2 else 8.8 if i == 3 else 2.0 if i == 4 else 0.25) for i in range(6))
+        top = (
+                arguments.porosity_ratio * lam_vapor_air +
+                sum(
+                    k[i] *
+                    theta_l *
+                    (lam_vapor_air if i == 2 else 8.8 if i == 3 else 2.0 if i == 4 else 0.25)
+                    for i in range(6)
+                )
+        )
 
         lam_dry = 1.25 * top / (arguments.porosity_ratio + sum(k[i] * theta_l for i in range(6)))
 
         # Calculating lam using Eq. 3.1 and Eq. 3.2
-        top = sum(k[i] * (lam_vapor_air if i == 2 else 8.8 if i == 3 else 2.0 if i == 4 else 0.25) * theta_l for i in range(6))
+        top = sum(
+            k[i] *
+            (lam_vapor_air if i == 2 else 8.8 if i == 3 else 2.0 if i == 4 else 0.25) *
+            theta_l
+            for i in range(6)
+        )
         bot = sum(k[i] * theta_l for i in range(6))
 
         lam = numpy.where(
@@ -356,7 +371,9 @@ class Methods:
         - Thermal conductivity of the soil for given water content
         """
 
-        values = Methods._interpolate_for_sadhegi(arguments.percentage_sand, arguments.percentage_silt, arguments.percentage_clay)
+        values = Methods._interpolate_for_sadhegi(
+            arguments.percentage_sand, arguments.percentage_silt, arguments.percentage_clay
+        )
         lam_sat = values["lambda_sat"]
         lam_dry = values["lambda_dry"]
         t_s = values["t_s"]
@@ -403,6 +420,7 @@ class Methods:
         if numpy.isscalar(denominator):
             if abs(denominator) < 1e-10:
                 denominator = 1e-10
+
         else:  # If it's an array
             denominator[abs(denominator) < 1e-10] = 1e-10
 
@@ -421,7 +439,12 @@ class Methods:
 
         lam_dry = 0.51 - 0.56 * arguments.porosity_ratio
         delta = 0.67 * arguments.percentage_clay / 100. + 0.24
-        beta = 1.97 * arguments.percentage_sand / 100. + 1.87 * arguments.density_soil_non_si - 1.36 * arguments.density_soil_non_si * arguments.percentage_sand / 100. - 0.95
+        beta = (
+                1.97 * arguments.percentage_sand / 100. +
+                1.87 * arguments.density_soil_non_si -
+                1.36 * arguments.density_soil_non_si * arguments.percentage_sand / 100. -
+                0.95
+        )
 
         intermediates = beta - theta ** (-delta)
         # Create a mask for values in intermediates that are above -100
@@ -445,9 +468,18 @@ class Methods:
 
         theta_gravimetric = 100. * theta_volumetric / arguments.density_soil_non_si
         if (arguments.percentage_silt + arguments.percentage_clay) < 50.:
-            lam_kersten = 0.1442 * (0.7 * numpy.log10(theta_gravimetric) + 0.4) * 10 ** (0.6243 * arguments.density_soil_non_si)  # Eq. 3.18
+            lam_kersten = (
+                    .1442 *
+                    (0.7 * numpy.log10(theta_gravimetric) + 0.4) *
+                    10 ** (0.6243 * arguments.density_soil_non_si)
+            )  # Eq. 3.18
+
         else:
-            lam_kersten = 0.1442 * (0.9 * numpy.log10(theta_gravimetric) - 0.2) * 10 ** (0.6243 * arguments.density_soil_non_si)  # Eq. 3.19
+            lam_kersten = (
+                    .1442 *
+                    (0.9 * numpy.log10(theta_gravimetric) - 0.2) *
+                    10 ** (0.6243 * arguments.density_soil_non_si)
+            )  # Eq. 3.19
         return lam_kersten
 
     @staticmethod
@@ -464,11 +496,12 @@ class Methods:
         # Thermal conductivity of soil mineral solids
         lam_s = lam_q ** volume_fraction_quartz * lam_other ** (1 - volume_fraction_quartz)
 
-        particle_density_kg_m_cubed = 2700
+        particle_density_kg_m_cubed = 2_700
 
         # Calculate lambda_dry
-        # lam_dry = (0.135 * arguments.density_soil + 64.7) / (arguments.particle_density - 0.947 * arguments.density_soil)
-        lam_dry = (0.137 * arguments.density_soil + 64.7) / (particle_density_kg_m_cubed - 0.947 * arguments.density_soil)
+        lam_dry = (
+                (.137 * arguments.density_soil + 64.7) / (particle_density_kg_m_cubed - .947 * arguments.density_soil)
+        )
 
         # Calculate lambda_sat
         lam_sat = lam_w ** arguments.porosity_ratio * lam_s ** (1 - arguments.porosity_ratio)
@@ -476,8 +509,6 @@ class Methods:
         # Saturation degree
         s = theta / arguments.porosity_ratio
 
-        # if S > 0.05, then Ke = 1 + 0.7log10 (S), else Ke = 1 + log10 (S)
-        # ke_johansen = numpy.where(s > 0.05, 1 + 0.7 * numpy.log10(s), 1 + numpy.log10(s))
         if arguments.percentage_clay < 5.:
             ke_johansen = numpy.where(s > .05, 1 + .7 * numpy.log10(s), 0.)
         else:
@@ -503,7 +534,6 @@ class Methods:
 
         if arguments.percentage_sand > 50:
             soil_material = "Medium and fine sand"
-            # k_r = .7 * numpy.log10(theta / arguments.porosity_ratio) + 1.
         else:
             soil_material = "Silty and clayey soils"
 
@@ -513,40 +543,22 @@ class Methods:
         if soil_material not in k_values:
             raise ValueError(f"Invalid soil material: {soil_material}. Supported values are: {', '.join(k_values.keys())}")
 
-        # cote publikation, formeln 4 und 5, S_r ist Anteil der vollständigen Sättigung
-        # vollständige Sättigung ist alle Poren voller Wasser
         chi = 0.75
         eta = 1.2
         lam_dry = chi * 10 ** (-eta * arguments.porosity_ratio)
-        # lam_sat = arguments.porosity_ratio
 
-        # ====
         lam_w = 0.6
-        lam_q = 7.7
-        volume_fraction_quartz = 0.5 * arguments.percentage_sand / 100  # Convert percentage to fraction
-        lam_other = 2 if volume_fraction_quartz >= 0.2 else 3
-
-        # Thermal conductivity of soil mineral solids
-        # lam_s = lam_q ** volume_fraction_quartz * lam_other ** (1 - volume_fraction_quartz)
 
         lam_s_table = {
             "silt_n_clay": 2.9,
             "sand": 3.,
         }
 
-        lam_s = 2.9 if arguments.percentage_sand < 50 else 3.
+        lam_s = lam_s_table["silt_n_clay"] if arguments.percentage_sand < 50 else lam_s_table["sand"]
 
         # Calculate lambda_sat
         lam_sat = lam_w ** arguments.porosity_ratio * lam_s ** (1 - arguments.porosity_ratio)
-        # ====
-        # xxx
-        k = k_values[soil_material]
-        steps = theta / arguments.porosity_ratio
-        # ke_cote_konrad = k * steps * (1. + (k - 1.) * steps)
-        # ke_cote_konrad = k_r * (lam_sat - lam_dry)
 
-        # lam_cote_konrad = lam_dry + ke_cote_konrad * (lam_sat - lam_dry)
-        # lam_cote_konrad = lam_dry * ke_cote_konrad
         lam_cote_konrad = lam_dry + k_r * (lam_sat - lam_dry)
         return lam_cote_konrad
 
@@ -559,11 +571,20 @@ class Methods:
         # particle_density = arguments.particle_density
         particle_density = 2_700  # from Yang et al. (2005)
 
-        k_t = 0.36
+        k_t = .36
         steps = theta / arguments.porosity_ratio
-        gravimetric_quartz_content = arguments.percentage_sand / 100  # Assuming sand content represents quartz content
-        lam_sat = 0.5 ** arguments.porosity_ratio * (7.7 ** gravimetric_quartz_content * 2 ** (1 - gravimetric_quartz_content)) ** (1 - arguments.porosity_ratio)
-        lam_dry = (.135 * arguments.density_soil + 64.7) / (particle_density - .947 * arguments.density_soil)  # As used before for dry soil
+
+        # Assuming sand content represents quartz content
+        gravimetric_quartz_content = arguments.percentage_sand / 100
+        lam_sat = (
+                .5 ** arguments.porosity_ratio *
+                (
+                        7.7 ** gravimetric_quartz_content * 2 ** (1 - gravimetric_quartz_content)
+                ) ** (1 - arguments.porosity_ratio)
+        )
+
+        # As used before for dry soil
+        lam_dry = (.135 * arguments.density_soil + 64.7) / (particle_density - .947 * arguments.density_soil)
 
         ke_yang = numpy.exp(k_t * (1 - 1 / steps))
         lam_yang = lam_dry + ke_yang * (lam_sat - lam_dry)
@@ -763,13 +784,15 @@ def main() -> None:
             for each_method in methods:
                 model_results = each_method(theta_measurement_volumetric, arguments)
                 sse = numpy.sum((data_measured - model_results) ** 2)
-                measurement_output[f"RMSE {each_method.__name__}"].append(numpy.sqrt(sse / no_measurements))
+                rmse = numpy.sqrt(sse / no_measurements)
+                bias = numpy.sum(model_results - data_measured) / numpy.sum(model_results)
+
+                measurement_output[f"RMSE {each_method.__name__}"].append(rmse)
                 scatter_data[each_method.__name__]["model"].extend(model_results)
                 scatter_data[each_method.__name__]["data"].extend(data_measured)
                 scatter_data[each_method.__name__]["is_punctual"].extend(measurement_type_sequence)
                 # scatter_data[each_method.__name__]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
                 scatter_data[each_method.__name__]["is_tu"].extend(soil_type_sequence)
-                bias = numpy.sum(model_results - data_measured) / numpy.sum(model_results)
                 measurement_output[f"BIAS {each_method.__name__}"].append(bias)
             # END measurements
 
@@ -832,9 +855,6 @@ def main() -> None:
 
             rmse = numpy.sqrt(sum_delta_squared / measurements)
             bias = sum_delta / sum_model
-
-            if "kersten" in method and combination_str.count("low") == 3:
-                print("break")
 
             with result_overview.open(mode="a") as result_file:
                 result_file.write(f"{combination_str:s};{method:s};{rmse:.3f};{bias:.3f}\n")
