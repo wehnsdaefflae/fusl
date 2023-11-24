@@ -477,7 +477,7 @@ class Methods:
             )  # Eq. 3.18
 
         else:
-            theta_gravimetric = numpy.where(theta_gravimetric < 7., 1., theta_gravimetric)
+            theta_gravimetric = numpy.where(theta_gravimetric < 7., 4., theta_gravimetric)
 
             lam_kersten = (
                     .1442 *
