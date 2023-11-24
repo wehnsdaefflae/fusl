@@ -468,6 +468,12 @@ class Methods:
 
         theta_gravimetric = 100. * theta_volumetric / arguments.density_soil_non_si
         if (arguments.percentage_silt + arguments.percentage_clay) < 50.:
+            if numpy.any(theta_gravimetric < 1.):
+                raise ValueError(
+                    "The Kersten-Johansen-Bertermann model cannot be used on silt + clay for gravimetric "
+                    "water contents below 1%."
+                )
+
             lam_kersten = (
                     .1442 *
                     (0.7 * numpy.log10(theta_gravimetric) + 0.4) *
@@ -475,11 +481,18 @@ class Methods:
             )  # Eq. 3.18
 
         else:
+            if numpy.any(theta_gravimetric < 7.):
+                raise ValueError(
+                    "The Kersten-Johansen-Bertermann model cannot be used on sand for gravimetric "
+                    "water contents below 7%."
+                )
+
             lam_kersten = (
                     .1442 *
                     (0.9 * numpy.log10(theta_gravimetric) - 0.2) *
                     10 ** (0.6243 * arguments.density_soil_non_si)
             )  # Eq. 3.19
+
         return lam_kersten
 
     @staticmethod
@@ -512,7 +525,7 @@ class Methods:
         if arguments.percentage_clay < 5.:
             ke_johansen = numpy.where(s > .05, 1 + .7 * numpy.log10(s), 0.)
         else:
-            ke_johansen = numpy.where(s > .05, 1 + numpy.log10(s), 0.)
+            ke_johansen = numpy.where(s > .1, 1 + numpy.log10(s), 0.)
 
         lam_jo = lam_dry + ke_johansen * (lam_sat - lam_dry)
         return lam_jo
