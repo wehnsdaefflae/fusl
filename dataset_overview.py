@@ -57,18 +57,10 @@ def main() -> None:
         plot_subset_path = subset_path / "plots"
         plot_subset_path.mkdir(parents=True, exist_ok=True)
 
-        next_sheet = 0
-
         for row_index, (n, row) in enumerate(overview_sheet.iterrows()):
             row_index = int(row_index)
 
-            while (each_sheet := data_measurement_sheets.get(f"{next_sheet:d}")) is None:
-                next_sheet += 1
-                if next_sheet >= 100:
-                    print(f"Sheet {n + 1:d} not found")
-                    break
-
-            short_name, percentage_sand, percentage_silt, percentage_clay, density_soil_non_si, soil_type = row.values[1:7]
+            sheet_index, short_name, percentage_sand, percentage_silt, percentage_clay, density_soil_non_si, soil_type = row.values[:7]
 
             each_density = row.values[9]
 
@@ -87,6 +79,7 @@ def main() -> None:
             # volumetrischer Sättigungswassergehalt [m3/m3]
             print(porosity_ratio)
 
+            each_sheet = data_measurement_sheets.get(f"{sheet_index}")
             theta_array = each_sheet["θ [cm3/cm3]"].to_numpy()
 
             lambda_array = each_sheet["λ [W/(m∙K)]"].to_numpy()
