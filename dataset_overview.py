@@ -8,6 +8,26 @@ import pandas
 numpy.seterr(all='raise')
 
 
+def get_all_values(data: list[float]) -> dict[str, float]:
+    return {
+        "minimum": numpy.min(data),
+        "quantile_1": numpy.quantile(data, .25),
+        "median": numpy.median(data),
+        "mean": numpy.mean(data),
+        "quantile_3": numpy.quantile(data, .75),
+        "maximum": numpy.max(data),
+    }
+
+
+def print_values(data: dict[str, float]) -> None:
+    print(f"minimum\t{data['minimum']:.5f}")
+    print(f"quantile_1\t{data['quantile_1']:.5f}")
+    print(f"median\t{data['median']:.5f}")
+    print(f"mean\t{data['mean']:.5f}")
+    print(f"quantile_3\t{data['quantile_3']:.5f}")
+    print(f"maximum\t{data['maximum']:.5f}")
+
+
 def main() -> None:
     input_path = Path("data/")
     output_path = Path("output/")
@@ -21,6 +41,14 @@ def main() -> None:
     data_density = "low", "high"
 
     for data in data_density:
+        all_lambda = list()
+        all_theta = list()
+        all_density = list()
+        all_s = list()
+        all_clay = list()
+        all_silt = list()
+        all_sand = list()
+
         combination_str = f"data-{data}"
 
         subset_path = output_path / combination_str
@@ -69,11 +97,45 @@ def main() -> None:
 
             theta_measurement_volumetric = theta_array[filter_array]
             data_measured = lambda_array[filter_array]
+            s = theta_measurement_volumetric / porosity_ratio
 
             if len(theta_measurement_volumetric) < 1 or len(data_measured) < 1:
                 print(f"Skipping {row_index + 1:d} due to missing data")
                 continue
 
+            for each_theta, each_lambda, each_s in zip(theta_measurement_volumetric, data_measured, s):
+                all_theta.append(each_theta)
+                all_lambda.append(each_lambda)
+                all_s.append(each_s)
+
+                all_density.append(density_soil_non_si)
+                all_clay.append(percentage_clay)
+                all_silt.append(percentage_silt)
+                all_sand.append(percentage_sand)
+
+        lambda_values = get_all_values(all_lambda)
+        theta_values = get_all_values(all_theta)
+        s_values = get_all_values(all_s)
+        density_values = get_all_values(all_density)
+        clay_values = get_all_values(all_clay)
+        silt_values = get_all_values(all_silt)
+        sand_values = get_all_values(all_sand)
+
+        print(f"data type {data}")
+        print(f"lambda ({len(all_lambda):d})")
+        print_values(lambda_values)
+        print(f"theta ({len(all_theta):d})")
+        print_values(theta_values)
+        print(f"s ({len(all_s):d})")
+        print_values(s_values)
+        print(f"density ({len(all_density):d})")
+        print_values(density_values)
+        print(f"clay ({len(all_clay):d})")
+        print_values(clay_values)
+        print(f"silt ({len(all_silt):d})")
+        print_values(silt_values)
+        print(f"sand ({len(all_sand):d})")
+        print_values(sand_values)
 
 
 if __name__ == "__main__":
