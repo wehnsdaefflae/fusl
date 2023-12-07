@@ -121,34 +121,11 @@ class Methods:
 
     @staticmethod
     def hu(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
-        """
-        \section{The model of Hu et al. (2001)}
-        The Kersten number $\mathrm{Ke}$ represents a relative thermal conductivity which is defined by
-        $$
-        K e=\frac{\lambda-\lambda_{d r y}}{\lambda_{\text {sat }}-\lambda_{d r y}}
-        $$
-        where $\lambda_{d r y}$ and $\lambda_{\text {sat }}$ denote the thermal conductivity of dry and saturated soil, respectively, yielding
-        $$
-        \lambda=\lambda_{d r y}+\operatorname{Ke}(S)\left(\lambda_{s a t}-\lambda_{d r y}\right)  % Eq. 3.17
-        $$
-        where $S$ is the saturation degree [22].
-        Johansen uses the basic Eq. (3.17) of all Kersten approximations [28]. He and coauthors estimated the thermal conductivity of natural dry soils by
-        $$
-        \lambda_{d r y}=\frac{0.135 \rho_b+64.7}{\rho_s-0.947 \rho_b} % Eq. 3.20
-        $$
-        For crushed rocks he proposes
-        $$
-        \lambda_{d r y}=0.039 \phi^{-2.2}  % Eq. 3.21
-        $$
-        with $\Phi$ porosity, approximated by $\Phi=1-\rho_{\mathrm{b}} / \rho_{\mathrm{s}}$.
-        The model of Hu et al. [30], resembles that of Johansen except the Kersten coefficient which is given by
-        $$
-        K e=0.9878+0.1811 \ln (S)
-        $$
-        To estimate the boundaries, Eqs. 3.20 and 3.21 are used with slightly changed constants which are $\lambda_s=3.35 \mathrm{~W} \cdot \mathrm{m}^{-1}{ }^{\circ} \mathrm{K}^{-1}, \lambda_w=0.6 \mathrm{~W} \cdot \mathrm{m}^{-1}{ }^{\circ} \mathrm{K}^{-1}$ ), and $\lambda_{\text {air }}=0.0246$ $\mathrm{W} \cdot \mathrm{m}^{-1}{ }^{\circ} \mathrm{K} \cdot{ }^{-1}$
-        """
         lam_w = .6  # wiki: 0.597 https://de.wikipedia.org/wiki/Eigenschaften_des_Wassers
         steps = theta / arguments.porosity_ratio
+        steps_max = steps.max()
+        if 1. < steps_max:
+            steps /= steps_max
 
         particle_density_kg_m_cubed = 2_700
 
@@ -170,34 +147,11 @@ class Methods:
 
     @staticmethod
     def ewen_and_thomas(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
-        """
-        \section{The model of Markle et al. (2006)}
-                The Kersten number $\mathrm{Ke}$ represents a relative thermal conductivity which is defined by
-        $$
-        K e=\frac{\lambda-\lambda_{d r y}}{\lambda_{\text {sat }}-\lambda_{d r y}}
-        $$
-        where $\lambda_{d r y}$ and $\lambda_{\text {sat }}$ denote the thermal conductivity of dry and saturated soil, respectively, yielding
-        $$
-        \lambda=\lambda_{d r y}+\operatorname{Ke}(S)\left(\lambda_{s a t}-\lambda_{d r y}\right)  % Eq. 3.17
-        $$
-        where $S$ is the saturation degree [22].
-        Johansen uses the basic Eq. (3.17) of all Kersten approximations [28]. He and coauthors estimated the thermal conductivity of natural dry soils by
-        $$
-        \lambda_{d r y}=\frac{0.135 \rho_b+64.7}{\rho_s-0.947 \rho_b} % Eq. 3.20
-        $$
-        For crushed rocks he proposes
-        $$
-        \lambda_{d r y}=0.039 \phi^{-2.2}  % Eq. 3.21
-        $$
-        with $\Phi$ porosity, approximated by $\Phi=1-\rho_{\mathrm{b}} / \rho_{\mathrm{s}}$.
-        Following Ewen and Thomas [32] and Markle et al. [33], who proposed an exponential function to obtain Ke by
-        $$
-        K e=1-\exp (-\zeta S)
-        $$
-        where $\zeta$ represents a fitting parameter the value of which should be $\zeta=8.9$. To obtain thermal conductivity, again Eqs. 3.17, 3.20, and 3.22 are used. For further details concerning the history of the method, readers are referred to He et al. [12].
-        """
         zeta = -8.9
         steps = theta / arguments.porosity_ratio
+        steps_max = steps.max()
+        if 1. < steps_max:
+            steps /= steps_max
         ke_ma = 1. - numpy.exp(zeta * steps)
         particle_density_kg_m_cubed = 2700
         lam_dry = (.137 * arguments.density_soil + 64.7) / (particle_density_kg_m_cubed - .947 * arguments.density_soil)
@@ -215,21 +169,12 @@ class Methods:
 
     @staticmethod
     def brakelmann(theta: numpy.ndarray, arguments: Arguments) -> numpy.ndarray:
-        """
-        \section{The Model of Brakelmann}
-        Brakelmann developed an empirical formula to estimate soil thermal conductivity based upon bulk density and water content [7]. His method has been used successfully for the planning of buried power cables:
-        $$
-        \lambda=\lambda_w^{\Phi} \lambda_b^{(1-\Phi)} \exp \left(-3.08 \Phi(1-S)^2\right)
-        $$
-        with $\lambda_b$ thermal conductivity of soil mineral solids, approximated by: $\lambda_{\mathrm{b}}=0.0812 * \mathrm{sa}$ nd $\%+0.054 *$ silt $\%+0.02 *$ clay $\%, \rho_{\mathrm{p}}$ particle density, approximated by
-        $$
-        \rho_p=0.0263 * \text { sand } \%+0.0265 * \text { silt } \%+0.028 * \text { clay } \%
-        $$
-        Saturation degree, $S=\theta / \Phi$.
-        """
-        lam_w  = .588  # .57  # wiki: 0.597 https://de.wikipedia.org/wiki/Eigenschaften_des_Wassers
+        lam_w = .588  # .57  # wiki: 0.597 https://de.wikipedia.org/wiki/Eigenschaften_des_Wassers
         lam_b = .0812 * arguments.percentage_sand + .054 * arguments.percentage_silt + .02 * arguments.percentage_clay
         steps = theta / arguments.porosity_ratio
+        steps_max = steps.max()
+        if 1. < steps_max:
+            steps /= steps_max
         lam_brakelmann = (
                 lam_w ** arguments.porosity_ratio *
                 lam_b ** (1. - arguments.porosity_ratio) *
@@ -467,6 +412,10 @@ class Methods:
         """
 
         theta_gravimetric = 100. * theta_volumetric / arguments.density_soil_non_si
+        theta_gravimetric_max = theta_gravimetric.max()
+        if 100. < theta_gravimetric_max:
+            theta_gravimetric /= theta_gravimetric_max
+
         if (arguments.percentage_silt + arguments.percentage_clay) < 50.:
             theta_gravimetric = numpy.where(theta_gravimetric < 1., 1., theta_gravimetric)
 
@@ -512,12 +461,15 @@ class Methods:
         lam_sat = lam_w ** arguments.porosity_ratio * lam_s ** (1 - arguments.porosity_ratio)
 
         # Saturation degree
-        s = theta / arguments.porosity_ratio
+        steps = theta / arguments.porosity_ratio
+        steps_max = steps.max()
+        if 1. < steps_max:
+            steps /= steps_max
 
         if arguments.percentage_clay < 5.:
-            ke_johansen = numpy.where(s > .05, 1 + .7 * numpy.log10(s), 0.)
+            ke_johansen = numpy.where(steps > .05, 1 + .7 * numpy.log10(steps), 0.)
         else:
-            ke_johansen = numpy.where(s > .1, 1 + numpy.log10(s), 0.)
+            ke_johansen = numpy.where(steps > .1, 1 + numpy.log10(steps), 0.)
 
         lam_jo = lam_dry + ke_johansen * (lam_sat - lam_dry)
         return lam_jo
@@ -536,6 +488,9 @@ class Methods:
         }
 
         steps = theta / arguments.porosity_ratio
+        steps_max = steps.max()
+        if 1. < steps_max:
+            steps /= steps_max
 
         if arguments.percentage_sand > 50:
             soil_material = "Medium and fine sand"
@@ -578,6 +533,9 @@ class Methods:
 
         k_t = .36
         steps = theta / arguments.porosity_ratio
+        steps_max = steps.max()
+        if 1. < steps_max:
+            steps /= steps_max
 
         # Assuming sand content represents quartz content
         gravimetric_quartz_content = arguments.percentage_sand / 100
@@ -599,22 +557,7 @@ class Methods:
     def get_static_methods(cls) -> list[Callable[..., any]]:
         return [
             value for name, value in inspect.getmembers(cls)
-            if isinstance(inspect.getattr_static(cls, name), staticmethod) and not name.startswith("_")
-        ]
-
-        return [
-            Methods.kersten_johansen_bertermann,
-            Methods.johansen,
-            Methods.brakelmann,
-            Methods.ewen_and_thomas,
-            Methods.hu,
-            Methods.cote_konrad,
-            Methods.yang,
-            Methods.lu,
-            Methods.markert_unspecific,
-            Methods.markert_specific_both,
-            Methods.markert_specific_unpacked,
-            Methods.markert_specific_packed,
+            if isinstance(inspect.getattr_static(cls, name), staticmethod) and not name.startswith("_") and not name.startswith("fix")
         ]
 
 
@@ -646,6 +589,8 @@ def main() -> None:
     output_path = Path("output/")
     output_path.mkdir(parents=True, exist_ok=True)
 
+    methods = Methods.get_static_methods()
+
     # set output file
     result_overview = output_path / "result_overview.csv"
 
@@ -657,11 +602,10 @@ def main() -> None:
     particle_density = 2650  # reindichte stein? soil? grauwacke? https://www.chemie.de/lexikon/Gesteinsdichte.html
     thermal_conductivity_quartz = 7.7  # metall?
 
-    methods = Methods.get_static_methods()
-
     data_measurement_sheets = pandas.read_excel(measurements_input_file, sheet_name=None)
     overview_sheet = data_measurement_sheets.get("Übersicht")
-    data_density = "low", "high"  #, "all"
+    # data_density = "low", "high"
+    data_density = "all",
     sand_content = "low", "high", "all"
     water_satura = "low", "high", "all"
 
@@ -710,6 +654,7 @@ def main() -> None:
             measurement_type = row.values[10]
 
             # skip if wrong subset
+
             if data_subset == "low" and each_density != "low":
                 continue
             if data_subset == "high" and each_density != "high":
@@ -777,6 +722,7 @@ def main() -> None:
             theta_measurement_volumetric = theta_array[filter_array]
             # theta_measurement = each_sheet["θ [cm3/cm3]"]
             data_measured = lambda_array[filter_array]
+            s = theta_measurement_volumetric / porosity_ratio
 
             if len(theta_measurement_volumetric) < 1 or len(data_measured) < 1:
                 print(f"Skipping \"Messung {sheet_index:d}\" due to missing data.")
@@ -799,6 +745,8 @@ def main() -> None:
                 particle_density=particle_density,
                 density_soil=density_soil
             )
+
+            # Methods.fix_arguments(theta_measurement_volumetric, arguments)
 
             # START measurements
             for each_method in methods:

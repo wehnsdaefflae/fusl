@@ -38,7 +38,8 @@ def main() -> None:
 
     data_measurement_sheets = pandas.read_excel(measurements_input_file, sheet_name=None)
     overview_sheet = data_measurement_sheets.get("Übersicht")
-    data_density = "low", "high"
+    # data_density = "low", "high"
+    data_density = "all",
 
     for data in data_density:
         all_lambda = list()
@@ -90,13 +91,16 @@ def main() -> None:
 
             theta_measurement_volumetric = theta_array[filter_array]
             data_measured = lambda_array[filter_array]
-            s = theta_measurement_volumetric / porosity_ratio
+            steps = theta_measurement_volumetric / porosity_ratio
+            steps_max = numpy.max(steps)
+            if 1. < steps_max:
+                steps /= steps_max
 
             if len(theta_measurement_volumetric) < 1 or len(data_measured) < 1:
                 print(f"Skipping {row_index + 1:d} due to missing data")
                 continue
 
-            for each_theta, each_lambda, each_s in zip(theta_measurement_volumetric, data_measured, s):
+            for each_theta, each_lambda, each_s in zip(theta_measurement_volumetric, data_measured, steps):
                 all_theta.append(each_theta)
                 all_lambda.append(each_lambda)
                 all_s.append(each_s)
