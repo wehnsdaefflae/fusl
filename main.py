@@ -827,7 +827,7 @@ def main() -> None:
             with result_overview.open(mode="a") as result_file:
                 result_file.write(f"{combination_str:s};{method:s};{rmse:.3f};{bias:.3f}\n")
 
-            pyplot.title(f"{method:s} (rmse: {rmse:.3f}, bias: {bias:.3f})")
+            pyplot.title(f"{method:s}")
             pyplot.plot([0, 3], [0, 3], c="black", linestyle="--", alpha=.3)
 
             non_punctual_x = [
