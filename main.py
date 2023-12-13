@@ -604,8 +604,8 @@ def main() -> None:
 
     data_measurement_sheets = pandas.read_excel(measurements_input_file, sheet_name=None)
     overview_sheet = data_measurement_sheets.get("Übersicht")
-    # data_density = "low", "high"
-    data_density = "all",
+    data_density = "low", "high"
+    # data_density = "all",
     sand_content = "low", "high", "all"
     water_satura = "low", "high", "all"
 
