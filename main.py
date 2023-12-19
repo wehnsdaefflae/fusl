@@ -10,6 +10,7 @@ from typing import Callable
 
 import numpy
 from matplotlib import pyplot
+import matplotlib.font_manager
 import pandas
 
 numpy.seterr(all='raise')
@@ -583,6 +584,16 @@ def init_scatter_data(methods: list[Callable[..., any]]) -> dict[str, dict[str, 
 
 
 def main() -> None:
+    pyplot.rcParams.update(
+        {
+            "font.family": "Palatino Linotype",
+            # "font.size": 32,
+        }
+    )
+
+    font_manager = matplotlib.font_manager.fontManager
+    font_manager.addfont("/home/mark/Downloads/Palatino Linotype.ttf")
+
     # initialize paths
     input_path = Path("data/")
     input_path.mkdir(parents=True, exist_ok=True)
@@ -827,8 +838,18 @@ def main() -> None:
             with result_overview.open(mode="a") as result_file:
                 result_file.write(f"{combination_str:s};{method:s};{rmse:.3f};{bias:.3f}\n")
 
-            pyplot.title(f"{method:s}")
-            pyplot.plot([0, 3], [0, 3], c="black", linestyle="--", alpha=.3)
+            figure = pyplot.figure(figsize=(3, 3))
+            axis = figure.add_subplot(111)
+            axis.set(
+                title=convert_name(method),
+                xlabel="Messung [W/(mK)]",
+                ylabel="Modell [W/(mK)]",
+                xlim=(0, 3),
+                ylim=(0, 3),
+
+            )
+            axis.plot([0, 3], [0, 3], c="black", linestyle="--", alpha=.3)
+            # pyplot.plot([0, 3], [0, 3], c="black", linestyle="--", alpha=.3)
 
             non_punctual_x = [
                 each_x for each_x, each_is_punctual in zip(info["data"], info["is_punctual"])
@@ -838,7 +859,8 @@ def main() -> None:
                 each_y for each_y, each_is_punctual in zip(info["model"], info["is_punctual"])
                 if not each_is_punctual
             ]
-            pyplot.scatter(non_punctual_x, non_punctual_y, c="blue", alpha=.1, s=.5)
+            # axis.plot(non_punctual_x, non_punctual_y, c="blue", alpha=.1, linestyle="", marker="o", markersize=.5)
+            axis.scatter(non_punctual_x, non_punctual_y, c="blue", alpha=.1, s=.5)
 
             punctual_x = [
                 each_x for each_x, each_is_punctual in zip(info["data"], info["is_punctual"])
@@ -848,15 +870,34 @@ def main() -> None:
                 each_y for each_y, each_is_punctual in zip(info["model"], info["is_punctual"])
                 if each_is_punctual
             ]
-            pyplot.scatter(punctual_x, punctual_y, c="black", alpha=.8, s=8, linewidths=1, marker="x")
+            axis.scatter(punctual_x, punctual_y, c="red", alpha=.1, s=.5)
+            # pyplot.scatter(punctual_x, punctual_y, c="black", alpha=.8, s=8, linewidths=1, marker="x")
 
             pyplot.xlim(0, 3)
             pyplot.ylim(0, 3)
-            pyplot.savefig((plot_subset_path / f"scatter_{method:s}.pdf").as_posix())
+            pyplot.savefig((plot_subset_path / f"scatter_{method:s}.pdf").as_posix(), bbox_inches="tight")
 
             # pyplot.show()
             pyplot.close()
         # END plot measurements against models
+
+
+def convert_name(name: str) -> str:
+    names = {
+        'markert_specific_packed': 'Markert et al. (2017) u+p',
+        'hu': 'Hu et al. (2001)',
+        'markert_specific_unpacked': 'Markert et al. (2017) u',
+        'brakelmann': 'Brakelmann (1984)',
+        'lu': 'Lu et al. (2014)',
+        'markert_specific_both': 'Markert et al. (2017) u+p',
+        'cote_konrad': 'Côté & Konrad (2005)',
+        'markert_unspecific': 'Markert et al. (2017) unspecific',
+        'yang': 'Yang et al. (2005)',
+        'ewen_and_thomas': 'Ewen & Thomas (1987)',
+        'johansen': 'Johansen (1975)',
+        'kersten_johansen_bertermann': 'Kersten (1949)',
+    }
+    return names[name]
 
 
 if __name__ == "__main__":

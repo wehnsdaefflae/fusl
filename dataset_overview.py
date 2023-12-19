@@ -134,8 +134,12 @@ def dataset_info() -> None:
 
 
 def dataset_plots() -> None:
-    pyplot.rcParams["font.family"] = "Palatino Linotype"
-
+    pyplot.rcParams.update(
+        {
+            "font.family": "Palatino Linotype",
+            # "font.size": 16,
+        }
+    )
     input_path = Path("data/")
     output_path = Path("output_plots/")
     output_path.mkdir(exist_ok=True)
@@ -154,16 +158,16 @@ def dataset_plots() -> None:
 
     # seaborn.set(font="Palatino Linotype")
 
-    fig_sand = pyplot.figure(figsize=(8, 8))
-    ax_sand = fig_sand.gca()
+    fig_sand = pyplot.figure(figsize=(3, 3))
+    ax_sand = fig_sand.add_subplot(111)  # , aspect="equal")
     ax_sand.set(
         title="sand",
         xlabel="volumetric water content θ [cm3/cm3]",
         ylabel="thermal conductivity λ [W/(m∙K)]"
     )
 
-    fig_no_sand = pyplot.figure(figsize=(8, 8))
-    ax_no_sand = fig_no_sand.gca()
+    fig_no_sand = pyplot.figure(figsize=(3, 3))
+    ax_no_sand = fig_no_sand.add_subplot(111)  # , aspect="equal")
     ax_no_sand.set(
         title="no sand",
         xlabel="volumetric water content θ [cm3/cm3]",
@@ -247,8 +251,8 @@ def dataset_plots() -> None:
         legend=False
     )
 
-    fig_sand.savefig(output_path / f"sand.png")
-    fig_no_sand.savefig(output_path / f"no_sand.png")
+    fig_sand.savefig(output_path / f"sand.pdf", bbox_inches="tight")
+    fig_no_sand.savefig(output_path / f"no_sand.pdf", bbox_inches="tight")
 
     # fig.show()
     pyplot.show()
