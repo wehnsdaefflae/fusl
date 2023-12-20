@@ -606,7 +606,7 @@ def main() -> None:
     result_overview = output_path / "result_overview.csv"
 
     # set input file
-    measurements_input_file = input_path / "Messdatenbank_FAU_Stand_2023-11-08.xlsx"
+    measurements_input_file = input_path / "Messdatenbank_FAU_Stand_2023-12-19.xlsx"
 
     cmap = pyplot.get_cmap("Set1")
 
@@ -615,8 +615,8 @@ def main() -> None:
 
     data_measurement_sheets = pandas.read_excel(measurements_input_file, sheet_name=None)
     overview_sheet = data_measurement_sheets.get("Übersicht")
-    data_density = "low", "high"
-    # data_density = "all",
+    # data_density = "low", "high"
+    data_density = "all",
     sand_content = "low", "high", "all"
     water_satura = "low", "high", "all"
 
@@ -870,8 +870,8 @@ def main() -> None:
                 each_y for each_y, each_is_punctual in zip(info["model"], info["is_punctual"])
                 if each_is_punctual
             ]
-            axis.scatter(punctual_x, punctual_y, c="red", alpha=.1, s=.5)
-            # pyplot.scatter(punctual_x, punctual_y, c="black", alpha=.8, s=8, linewidths=1, marker="x")
+            # axis.scatter(punctual_x, punctual_y, c="red", alpha=.1, s=.5)
+            axis.scatter(punctual_x, punctual_y, c="black", alpha=.8, s=8, linewidths=1, marker="x")
 
             pyplot.xlim(0, 3)
             pyplot.ylim(0, 3)

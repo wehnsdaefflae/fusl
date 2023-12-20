@@ -38,7 +38,7 @@ def dataset_info() -> None:
     input_path = Path("data/")
     output_path = Path("output/")
 
-    measurements_input_file = input_path / "Messdatenbank_FAU_Stand_2023-11-08.xlsx"
+    measurements_input_file = input_path / "Messdatenbank_FAU_Stand_2023-12-19.xlsx"
 
     particle_density = 2650  # reindichte stein? soil? grauwacke? https://www.chemie.de/lexikon/Gesteinsdichte.html
 
@@ -144,7 +144,7 @@ def dataset_plots() -> None:
     output_path = Path("output_plots/")
     output_path.mkdir(exist_ok=True)
 
-    measurements_input_file = input_path / "Messdatenbank_FAU_Stand_2023-11-08.xlsx"
+    measurements_input_file = input_path / "Messdatenbank_FAU_Stand_2023-12-19.xlsx"
 
     data_measurement_sheets = pandas.read_excel(measurements_input_file, sheet_name=None)
     overview_sheet = data_measurement_sheets.get("Übersicht")
