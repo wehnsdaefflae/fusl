@@ -36,7 +36,6 @@ def print_values(data: dict[str, float]) -> None:
 
 def dataset_info() -> None:
     input_path = Path("data/")
-    output_path = Path("output/")
 
     measurements_input_file = input_path / "Messdatenbank_FAU_Stand_2023-12-19.xlsx"
 
@@ -44,8 +43,8 @@ def dataset_info() -> None:
 
     data_measurement_sheets = pandas.read_excel(measurements_input_file, sheet_name=None)
     overview_sheet = data_measurement_sheets.get("Übersicht")
-    data_density = "low", "high"
-    # data_density = "all",
+    # data_density = "low", "high"
+    data_density = "all",
 
     for data in data_density:
         all_lambda = list()
@@ -260,8 +259,8 @@ def dataset_plots() -> None:
 
 
 def main():
-    # dataset_info()
-    dataset_plots()
+    dataset_info()
+    # dataset_plots()
 
 
 if __name__ == "__main__":

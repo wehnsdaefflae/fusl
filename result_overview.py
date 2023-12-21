@@ -5,7 +5,7 @@ import pandas
 
 def main() -> None:
     input_dir = "output"
-    output_file = "output/result_overview_new.csv"
+    output_file = "output/result_overview_series.csv"
 
     for data_set_name in os.listdir(input_dir):
         full_path = os.path.join(input_dir, data_set_name)

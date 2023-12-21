@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Callable
 
 import numpy
-from matplotlib import pyplot
+from matplotlib import pyplot, ticker
 import matplotlib.font_manager
 import pandas
 
@@ -709,8 +709,9 @@ def main() -> None:
             if water_subset == "low":
                 filter_array = (
                         numpy.isfinite(lambda_array)
-                        & (0 < theta_array)
+                        & (0. < theta_array)
                         & ((theta_array / porosity_ratio) < .5)
+                        & ((theta_array >= .01) if 50 < percentage_sand else (theta_array >= .07))
                     # & numpy.array([not is_punctual] * len(lambda_array))
                     # & numpy.array([not is_tu] * len(lambda_array))
                     # & is_in_range
@@ -718,8 +719,9 @@ def main() -> None:
             elif water_subset == "high":
                 filter_array = (
                         numpy.isfinite(lambda_array)
-                        & (0 < theta_array)
+                        & (0. < theta_array)
                         & ((theta_array / porosity_ratio) >= .5)
+                        & ((theta_array >= .01) if 50 < percentage_sand else (theta_array >= .07))
                     # & numpy.array([not is_punctual] * len(lambda_array))
                     # & numpy.array([not is_tu] * len(lambda_array))
                     # & is_in_range
@@ -842,14 +844,17 @@ def main() -> None:
             axis = figure.add_subplot(111)
             axis.set(
                 title=convert_name(method),
-                xlabel="Messung [W/(mK)]",
-                ylabel="Modell [W/(mK)]",
+                xlabel="measured [W/(mK)]",
+                ylabel="calculated [W/(mK)]",
                 xlim=(0, 3),
                 ylim=(0, 3),
 
             )
             axis.plot([0, 3], [0, 3], c="black", linestyle="--", alpha=.3)
             # pyplot.plot([0, 3], [0, 3], c="black", linestyle="--", alpha=.3)
+            format_function = lambda x, pos: f"{x:.1f}"
+            axis.xaxis.set_major_formatter(ticker.FuncFormatter(format_function))
+            axis.yaxis.set_major_formatter(ticker.FuncFormatter(format_function))
 
             non_punctual_x = [
                 each_x for each_x, each_is_punctual in zip(info["data"], info["is_punctual"])
