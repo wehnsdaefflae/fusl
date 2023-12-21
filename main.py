@@ -730,6 +730,7 @@ def main() -> None:
                 filter_array = (
                         numpy.isfinite(lambda_array)
                         & (0 < theta_array)
+                        & ((theta_array >= .01) if 50 < percentage_sand else (theta_array >= .07))
                 )
 
             theta_measurement_volumetric = theta_array[filter_array]
@@ -855,6 +856,9 @@ def main() -> None:
             format_function = lambda x, pos: f"{x:.1f}"
             axis.xaxis.set_major_formatter(ticker.FuncFormatter(format_function))
             axis.yaxis.set_major_formatter(ticker.FuncFormatter(format_function))
+            loc = matplotlib.ticker.MultipleLocator(base=.5)
+            axis.xaxis.set_major_locator(loc)
+            axis.yaxis.set_major_locator(loc)
 
             non_punctual_x = [
                 each_x for each_x, each_is_punctual in zip(info["data"], info["is_punctual"])
