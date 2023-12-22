@@ -418,21 +418,21 @@ class Methods:
             theta_gravimetric /= theta_gravimetric_max
 
         if (arguments.percentage_silt + arguments.percentage_clay) < 50.:
-            theta_gravimetric = numpy.where(theta_gravimetric < 1., 1., theta_gravimetric)
+            # theta_gravimetric = numpy.where(theta_gravimetric < 1., 1., theta_gravimetric)
 
             lam_kersten = (
                     .1442 *
-                    (0.7 * numpy.log10(theta_gravimetric) + 0.4) *
+                    (.7 * numpy.log10(theta_gravimetric) + .4) *
                     10 ** (0.6243 * arguments.density_soil_non_si)
             )  # Eq. 3.18
 
         else:
-            theta_gravimetric = numpy.where(theta_gravimetric < 7., 4., theta_gravimetric)
+            # theta_gravimetric = numpy.where(theta_gravimetric < 7., 4., theta_gravimetric)
 
             lam_kersten = (
                     .1442 *
-                    (0.9 * numpy.log10(theta_gravimetric) - 0.2) *
-                    10 ** (0.6243 * arguments.density_soil_non_si)
+                    (.9 * numpy.log10(theta_gravimetric) - .2) *
+                    10 ** (.6243 * arguments.density_soil_non_si)
             )  # Eq. 3.19
 
         return lam_kersten
