@@ -577,7 +577,7 @@ def init_outputs(methods: list[Callable[..., any]]) -> dict[str, list]:
 def init_scatter_data(methods: list[Callable[..., any]]) -> dict[str, dict[str, list]]:
     scatter_data = {
         each_method.__name__:
-            {"model": list(), "data": list(), "is_punctual": list(), "is_in_range": list(), "is_tu": list()}
+            {"model": list(), "data": list(), "is_low_density": list(), "is_in_range": list(), "is_tu": list()}
         for each_method in methods
     }
     return scatter_data
@@ -662,7 +662,7 @@ def main() -> None:
             density_soil_non_si = row.values[5]
             soil_type = row.values[6]
             each_density = row.values[9]
-            measurement_type = row.values[10]
+            # measurement_type = row.values[10]
 
             # skip if wrong subset
 
@@ -700,7 +700,7 @@ def main() -> None:
             each_sheet = data_measurement_sheets.get(f"{sheet_index}")
 
             theta_array = each_sheet["θ [cm3/cm3]"].to_numpy()
-            is_punctual = "punctual" in measurement_type.lower()
+            # is_punctual = "punctual" in measurement_type.lower()
             is_tu = "t/u" in soil_type.lower()
             # is_in_range = (theta_array >= bound_lo) & (bound_hi >= theta_array)
 
@@ -746,7 +746,7 @@ def main() -> None:
             measurement_output["Messreihe"].append(sheet_index)
             measurement_output["#Messungen"].append(no_measurements)
 
-            measurement_type_sequence = ["punctual" in measurement_type.lower()] * no_measurements
+            measurement_type_sequence = ["low" in each_density.lower()] * no_measurements
             soil_type_sequence = ["t/u" in soil_type.lower()] * no_measurements
 
             arguments = Methods.Arguments(
@@ -772,7 +772,7 @@ def main() -> None:
                 measurement_output[f"RMSE {each_method.__name__}"].append(rmse)
                 scatter_data[each_method.__name__]["model"].extend(model_results)
                 scatter_data[each_method.__name__]["data"].extend(data_measured)
-                scatter_data[each_method.__name__]["is_punctual"].extend(measurement_type_sequence)
+                scatter_data[each_method.__name__]["is_low_density"].extend(measurement_type_sequence)
                 # scatter_data[each_method.__name__]["is_in_range"].extend((theta_array >= bound_lo) & (bound_hi >= theta_array))
                 scatter_data[each_method.__name__]["is_tu"].extend(soil_type_sequence)
                 measurement_output[f"BIAS {each_method.__name__}"].append(bias)
@@ -861,22 +861,22 @@ def main() -> None:
             axis.yaxis.set_major_locator(loc)
 
             non_punctual_x = [
-                each_x for each_x, each_is_punctual in zip(info["data"], info["is_punctual"])
+                each_x for each_x, each_is_punctual in zip(info["data"], info["is_low_density"])
                 if not each_is_punctual
             ]
             non_punctual_y = [
-                each_y for each_y, each_is_punctual in zip(info["model"], info["is_punctual"])
+                each_y for each_y, each_is_punctual in zip(info["model"], info["is_low_density"])
                 if not each_is_punctual
             ]
             # axis.plot(non_punctual_x, non_punctual_y, c="blue", alpha=.1, linestyle="", marker="o", markersize=.5)
             axis.scatter(non_punctual_x, non_punctual_y, c="blue", alpha=.1, s=.5)
 
             punctual_x = [
-                each_x for each_x, each_is_punctual in zip(info["data"], info["is_punctual"])
+                each_x for each_x, each_is_punctual in zip(info["data"], info["is_low_density"])
                 if each_is_punctual
             ]
             punctual_y = [
-                each_y for each_y, each_is_punctual in zip(info["model"], info["is_punctual"])
+                each_y for each_y, each_is_punctual in zip(info["model"], info["is_low_density"])
                 if each_is_punctual
             ]
             # axis.scatter(punctual_x, punctual_y, c="red", alpha=.1, s=.5)
