@@ -141,7 +141,7 @@ class Methods:
         # Calculate lambda_sat
         lam_sat = lam_w ** arguments.porosity_ratio * lam_s ** (1 - arguments.porosity_ratio)
 
-        ke_hu = numpy.where(steps > .05, ke_hu, 0.)
+        # ke_hu = numpy.where(steps > .05, ke_hu, 0.)
 
         lam_hu = lam_dry + ke_hu * (lam_sat - lam_dry)
         return lam_hu
@@ -468,9 +468,11 @@ class Methods:
             steps /= steps_max
 
         if arguments.percentage_clay < 5.:
-            ke_johansen = numpy.where(steps > .05, 1 + .7 * numpy.log10(steps), 0.)
+            # ke_johansen = numpy.where(steps > .05, 1 + .7 * numpy.log10(steps), 0.)
+            ke_johansen = 1 + .7 * numpy.log10(steps)
         else:
-            ke_johansen = numpy.where(steps > .1, 1 + numpy.log10(steps), 0.)
+            # ke_johansen = numpy.where(steps > .1, 1 + numpy.log10(steps), 0.)
+            ke_johansen = 1 + numpy.log10(steps)
 
         lam_jo = lam_dry + ke_johansen * (lam_sat - lam_dry)
         return lam_jo
