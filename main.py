@@ -444,9 +444,9 @@ class Methods:
         its volumetric water content and other properties.
         """
         lam_w = 0.57
-        volume_fraction_quartz = 0.5 * arguments.percentage_sand / 100  # Convert percentage to fraction
+        volume_fraction_quartz = .5 * arguments.percentage_sand / 100  # Convert percentage to fraction
         lam_q = 7.7
-        lam_other = 2 if volume_fraction_quartz >= 0.2 else 3
+        lam_other = 2 if volume_fraction_quartz >= .2 else 3
 
         # Thermal conductivity of soil mineral solids
         lam_s = lam_q ** volume_fraction_quartz * lam_other ** (1 - volume_fraction_quartz)
@@ -468,11 +468,11 @@ class Methods:
             steps /= steps_max
 
         if arguments.percentage_clay < 5.:
-            # ke_johansen = numpy.where(steps > .05, 1 + .7 * numpy.log10(steps), 0.)
-            ke_johansen = 1 + .7 * numpy.log10(steps)
+            ke_johansen = numpy.where(steps > .05, 1 + .7 * numpy.log10(steps), 0.)
+            # ke_johansen = 1 + .7 * numpy.log10(steps)
         else:
-            # ke_johansen = numpy.where(steps > .1, 1 + numpy.log10(steps), 0.)
-            ke_johansen = 1 + numpy.log10(steps)
+            ke_johansen = numpy.where(steps > .1, 1 + numpy.log10(steps), 0.)
+            # ke_johansen = 1 + numpy.log10(steps)
 
         lam_jo = lam_dry + ke_johansen * (lam_sat - lam_dry)
         return lam_jo
@@ -886,7 +886,7 @@ def main() -> None:
 
             pyplot.xlim(0, 3)
             pyplot.ylim(0, 3)
-            pyplot.savefig((plot_subset_path / f"scatter_{method:s}.pdf").as_posix(), bbox_inches="tight")
+            pyplot.savefig((plot_subset_path / f"scatter_{method:s}.png").as_posix(), bbox_inches="tight", dpi=300)
 
             # pyplot.show()
             pyplot.close()
