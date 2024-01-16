@@ -895,7 +895,7 @@ def main() -> None:
 
 def convert_name(name: str) -> str:
     names = {
-        'markert_specific_packed': 'Markert et al. (2017) u+p',
+        'markert_specific_packed': 'Markert et al. (2017) p',
         'hu': 'Hu et al. (2001)',
         'markert_specific_unpacked': 'Markert et al. (2017) u',
         'brakelmann': 'Brakelmann (1984)',
