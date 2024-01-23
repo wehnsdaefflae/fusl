@@ -608,7 +608,7 @@ def main() -> None:
     result_overview = output_path / "result_overview.csv"
 
     # set input file
-    measurements_input_file = input_path / "Messdatenbank_FAU_Stand_2023-12-19.xlsx"
+    measurements_input_file = input_path / "Messdatenbank_FAU_Stand_2024-01-22.xlsx"
 
     cmap = pyplot.get_cmap("Set1")
 
