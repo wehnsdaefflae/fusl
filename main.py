@@ -870,6 +870,12 @@ def main() -> None:
                 each_y for each_y, each_is_punctual in zip(info["model"], info["is_low_density"])
                 if not each_is_punctual
             ]
+            non_punctual_table = pandas.DataFrame(
+                {
+                    "Messung": non_punctual_x,
+                    "Modell": non_punctual_y
+                }
+            )
             # axis.plot(non_punctual_x, non_punctual_y, c="blue", alpha=.1, linestyle="", marker="o", markersize=.5)
             axis.scatter(non_punctual_x, non_punctual_y, c="blue", alpha=.1, s=.5)
 
@@ -881,12 +887,22 @@ def main() -> None:
                 each_y for each_y, each_is_punctual in zip(info["model"], info["is_low_density"])
                 if each_is_punctual
             ]
+            punctual_table = pandas.DataFrame(
+                {
+                    "Messung": punctual_x,
+                    "Modell": punctual_y
+                }
+            )
             # axis.scatter(punctual_x, punctual_y, c="red", alpha=.1, s=.5)
             axis.scatter(punctual_x, punctual_y, c="black", alpha=.8, s=8, linewidths=1, marker="x")
 
             pyplot.xlim(0, 3)
             pyplot.ylim(0, 3)
             pyplot.savefig((plot_subset_path / f"scatter_{method:s}.png").as_posix(), bbox_inches="tight", dpi=300)
+
+            # save tables as csv
+            non_punctual_table.to_csv((plot_subset_path / f"{method:s}_non_punctual.csv").as_posix(), index=False)
+            punctual_table.to_csv((plot_subset_path / f"{method:s}_punctual.csv").as_posix(), index=False)
 
             # pyplot.show()
             pyplot.close()
